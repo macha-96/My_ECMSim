@@ -1,6 +1,7 @@
 bin/
 build/
 lib/
+third_party/
 
 .so
 .o
