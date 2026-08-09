@@ -7,37 +7,41 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:16px}
-h1{text-align:center;color:#e94560;margin-bottom:20px;font-size:24px}
-.layout{display:flex;flex-wrap:wrap;gap:16px}
-.panel{background:#16213e;border-radius:8px;padding:16px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
-.panel h2{color:#0f3460;font-size:16px;margin-bottom:10px;border-bottom:1px solid #0f3460;padding-bottom:6px}
-#situation{flex:1;min-width:380px;min-height:420px}
-#situation canvas{width:100%;height:360px;background:#0d1b2a;border-radius:4px;display:block}
-#controls{flex:0 0 340px;overflow-y:auto;max-height:700px}
-.entity-group{background:#1a1a40;border-radius:6px;padding:10px;margin-bottom:10px}
-.entity-group h3{font-size:13px;color:#e94560;margin-bottom:8px}
-.param-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px}
-.param-row label{flex:0 0 80px;color:#aaa}
-.param-row input[type=range]{flex:1;height:4px;accent-color:#e94560}
-.param-row input[type=number]{width:80px;padding:2px 4px;background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;font-size:11px}
-.param-row select{background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;padding:2px;font-size:11px}
-#results-panel{flex:1;min-width:380px}
-#results-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px}
-#results-table th{background:#0f3460;padding:6px 8px;text-align:left;font-weight:600}
-#results-table td{padding:4px 8px;border-bottom:1px solid #1a1a40}
+h1{text-align:center;color:#e94560;margin-bottom:16px;font-size:24px}
+.layout{display:flex;flex-wrap:wrap;gap:12px}
+.panel{background:#16213e;border-radius:8px;padding:14px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.panel h2{color:#0f3460;font-size:15px;margin-bottom:8px;border-bottom:1px solid #0f3460;padding-bottom:5px}
+#situation{flex:1;min-width:360px;min-height:380px}
+#situation canvas{width:100%;height:340px;background:#0d1b2a;border-radius:4px;display:block}
+#controls{flex:0 0 320px;overflow-y:auto;max-height:650px}
+.entity-group{background:#1a1a40;border-radius:6px;padding:8px;margin-bottom:8px}
+.entity-group h3{font-size:12px;color:#e94560;margin-bottom:6px}
+.param-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px}
+.param-row label{flex:0 0 70px;color:#aaa;font-size:11px}
+.param-row input[type=range]{flex:1;height:3px;accent-color:#e94560}
+.param-row input[type=number]{width:70px;padding:1px 3px;background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;font-size:10px}
+.param-row select{background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;padding:1px;font-size:10px}
+#results-panel{flex:1;min-width:360px}
+#results-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}
+#results-table th{background:#0f3460;padding:4px 6px;text-align:left;font-weight:600;white-space:nowrap}
+#results-table td{padding:3px 6px;border-bottom:1px solid #1a1a40;white-space:nowrap}
 .detect-ok{color:#4caf50;font-weight:600}
 .detect-fail{color:#f44336;font-weight:600}
-#chart-canvas{width:100%;height:200px;background:#0d1b2a;border-radius:4px;display:block}
-.btn-row{display:flex;gap:12px;margin:12px 0;flex-wrap:wrap}
-.btn{padding:8px 24px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;transition:.2s}
+.chart-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.chart-box{flex:1;min-width:280px}
+.chart-box canvas{width:100%;height:160px;background:#0d1b2a;border-radius:4px;display:block}
+.btn-row{display:flex;gap:10px;margin:8px 0;flex-wrap:wrap}
+.btn{padding:6px 20px;border:none;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600;transition:.2s}
 .btn-run{background:#e94560;color:#fff}
 .btn-run:hover{background:#c23150}
 .btn-reset{background:#0f3460;color:#fff}
 .btn-reset:hover{background:#0a2647}
-.btn-auto{background:#533483;color:#fff}
-.btn-auto:hover{background:#3e2563}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.status-bar{font-size:12px;color:#888;text-align:center;margin-top:8px}
+.status-bar{font-size:11px;color:#888;text-align:center;margin-top:6px}
+#jam-detail-panel{flex:1;min-width:360px}
+#jam-detail-table{width:100%;border-collapse:collapse;font-size:11px}
+#jam-detail-table th{background:#1a1a40;padding:3px 5px;text-align:left;font-weight:600;white-space:nowrap}
+#jam-detail-table td{padding:2px 5px;border-bottom:1px solid #1a1a40;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -65,34 +69,41 @@ h1{text-align:center;color:#e94560;margin-bottom:20px;font-size:24px}
       <button class="btn btn-run" id="btn-run" onclick="runSim()">▶ 运行仿真</button>
       <button class="btn btn-reset" onclick="resetConfig()">↺ 重置配置</button>
     </div>
+    <div style="overflow-x:auto">
     <table id="results-table">
-      <thead><tr><th>雷达ID</th><th>SINR (dB)</th><th>信号功率 (W)</th><th>干扰功率 (W)</th><th>检测结果</th></tr></thead>
+      <thead><tr>
+        <th>雷达</th><th>SINR(dB)</th><th>有效干扰(W)</th><th>JSR(dB)</th><th>匹配系数</th><th>评分</th><th>检测</th><th>欺骗</th>
+      </tr></thead>
       <tbody id="results-body"></tbody>
     </table>
-    <canvas id="chart-canvas"></canvas>
+    </div>
+    <div class="chart-row">
+      <div class="chart-box"><canvas id="chart-canvas"></canvas></div>
+      <div class="chart-box"><canvas id="freq-match-canvas"></canvas></div>
+    </div>
     <div id="status" class="status-bar">就绪</div>
+  </div>
+
+  <!-- Jammer Detail -->
+  <div id="jam-detail-panel" class="panel">
+    <h2>干扰机频域匹配明细</h2>
+    <div style="overflow-x:auto">
+    <table id="jam-detail-table">
+      <thead><tr>
+        <th>雷达</th><th>干扰机</th><th>类型</th><th>频差(MHz)</th><th>ζ匹配系数</th><th>空间功率(W)</th><th>有效功率(W)</th>
+      </tr></thead>
+      <tbody id="jam-detail-body"></tbody>
+    </table>
+    </div>
   </div>
 
 </div>
 
 <script>
-// ====== State ======
 let scene = null;
-let simHistory = [];         // array of {labels:[], sinr_dbs:[]}
-let autoTimer = null;
+let simHistory = [];
+let freqMatchHistory = [];
 let maxHistorySteps = 30;
-
-// ====== Canvas helpers ======
-function setupCanvas(canvas, width, height) {
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = width + 'px';
-    canvas.style.height = height + 'px';
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    return ctx;
-}
 
 function resizeCanvas(canvas) {
     const rect = canvas.getBoundingClientRect();
@@ -109,21 +120,16 @@ function resizeCanvas(canvas) {
     return { w: 0, h: 0, ctx: null };
 }
 
-// ====== Draw situation ======
 function drawSituation() {
     const canvas = document.getElementById('situation-canvas');
     const { w, h, ctx } = resizeCanvas(canvas);
     if (!ctx || w < 10) return;
-
     ctx.clearRect(0, 0, w, h);
-
-    // Compute bounds with padding
     let xs = [], ys = [];
     if (scene) {
         for (const r of (scene.radars || [])) { xs.push(r.x); ys.push(r.y); }
         for (const j of (scene.jammers || [])) { xs.push(j.x); ys.push(j.y); }
     }
-    // Default bounds
     let xMin = 0, xMax = 10000, yMin = 0, yMax = 10000;
     if (xs.length > 0) {
         xMin = Math.min(...xs); xMax = Math.max(...xs);
@@ -134,7 +140,6 @@ function drawSituation() {
     xMin -= xRange * pad; xMax += xRange * pad;
     yMin -= yRange * pad; yMax += yRange * pad;
     yMin = Math.min(0, yMin); xMin = Math.min(0, xMin);
-
     const margin = 50;
     const plotW = w - margin - 20;
     const plotH = h - margin - 20;
@@ -143,17 +148,10 @@ function drawSituation() {
     const scale = Math.min(scaleX, scaleY);
 
     function toCanvas(x, y) {
-        return {
-            cx: margin + (x - xMin) * scale,
-            cy: h - 20 - (y - yMin) * scale
-        };
+        return { cx: margin + (x - xMin) * scale, cy: h - 20 - (y - yMin) * scale };
     }
-
-    // Grid
-    ctx.strokeStyle = '#1a2a4a';
-    ctx.lineWidth = 0.5;
-    ctx.font = '10px sans-serif';
-    ctx.fillStyle = '#556';
+    ctx.strokeStyle = '#1a2a4a'; ctx.lineWidth = 0.5;
+    ctx.font = '10px sans-serif'; ctx.fillStyle = '#556';
     const xSteps = 5, ySteps = 5;
     for (let i = 0; i <= xSteps; i++) {
         const x = xMin + (xMax - xMin) * i / xSteps;
@@ -167,60 +165,34 @@ function drawSituation() {
         ctx.beginPath(); ctx.moveTo(margin, p.cy); ctx.lineTo(margin + plotW, p.cy); ctx.stroke();
         ctx.fillText(formatNum(y), 2, p.cy + 3);
     }
-
-    // Axes labels
-    ctx.fillStyle = '#888';
-    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
     ctx.fillText('X (m)', margin + plotW / 2 - 12, h - 2);
-    ctx.save();
-    ctx.translate(10, h / 2 + 20);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('Y (m)', -15, 0);
-    ctx.restore();
+    ctx.save(); ctx.translate(10, h / 2 + 20); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Y (m)', -15, 0); ctx.restore();
 
-    // Draw connections (radar->jammer)
     if (scene) {
-        ctx.strokeStyle = 'rgba(233,69,96,0.15)';
-        ctx.lineWidth = 1;
-        for (const r of (scene.radars || [])) {
+        ctx.strokeStyle = 'rgba(233,69,96,0.15)'; ctx.lineWidth = 1;
+        for (const r of (scene.radars || []))
             for (const j of (scene.jammers || [])) {
-                const p1 = toCanvas(r.x, r.y);
-                const p2 = toCanvas(j.x, j.y);
+                const p1 = toCanvas(r.x, r.y), p2 = toCanvas(j.x, j.y);
                 ctx.beginPath(); ctx.moveTo(p1.cx, p1.cy); ctx.lineTo(p2.cx, p2.cy); ctx.stroke();
             }
-        }
-
-        // Draw radars
         for (const r of (scene.radars || [])) {
             const p = toCanvas(r.x, r.y);
-            ctx.beginPath();
-            ctx.arc(p.cx, p.cy, 12, 0, 2 * Math.PI);
-            ctx.fillStyle = '#4caf50';
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 10px sans-serif';
-            ctx.textAlign = 'center';
+            ctx.beginPath(); ctx.arc(p.cx, p.cy, 12, 0, 2 * Math.PI);
+            ctx.fillStyle = '#4caf50'; ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
             ctx.fillText('R' + r.id, p.cx, p.cy + 24);
         }
-
-        // Draw jammers
         for (const j of (scene.jammers || [])) {
             const p = toCanvas(j.x, j.y);
             ctx.beginPath();
-            ctx.moveTo(p.cx - 10, p.cy - 10);
-            ctx.lineTo(p.cx + 10, p.cy + 10);
-            ctx.moveTo(p.cx + 10, p.cy - 10);
-            ctx.lineTo(p.cx - 10, p.cy + 10);
-            ctx.strokeStyle = '#e94560';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = '#e94560';
-            ctx.font = 'bold 10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('J' + j.id, p.cx, p.cy + 24);
+            ctx.moveTo(p.cx - 10, p.cy - 10); ctx.lineTo(p.cx + 10, p.cy + 10);
+            ctx.moveTo(p.cx + 10, p.cy - 10); ctx.lineTo(p.cx - 10, p.cy + 10);
+            ctx.strokeStyle = '#e94560'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#e94560'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('J' + j.id + (j.jam_type === 'RANGE_DECEPT' ? '✧' : ''), p.cx, p.cy + 24);
         }
     }
 }
@@ -230,77 +202,55 @@ function formatNum(n) {
     return n.toFixed(0);
 }
 
-// ====== Draw SINR chart ======
-function drawChart() {
-    const canvas = document.getElementById('chart-canvas');
+function drawChart(canvasId, dataKey, label, colorFn) {
+    const canvas = document.getElementById(canvasId);
     const { w, h, ctx } = resizeCanvas(canvas);
     if (!ctx || w < 10 || simHistory.length === 0) return;
 
-    const margin = { top: 20, right: 20, bottom: 35, left: 55 };
+    const margin = { top: 18, right: 15, bottom: 30, left: 50 };
     const plotW = w - margin.left - margin.right;
     const plotH = h - margin.top - margin.bottom;
-
     ctx.clearRect(0, 0, w, h);
 
-    // Gather all radar IDs
     const radarIds = new Set();
-    for (const step of simHistory) {
-        for (const label of step.labels) radarIds.add(label);
-    }
+    for (const step of simHistory)
+        for (const id of step.labels) radarIds.add(id);
     const ids = Array.from(radarIds).sort();
+    const palette = ['#e94560','#4caf50','#2196f3','#ff9800','#9c27b0','#00bcd4'];
     const idColors = {};
-    const palette = ['#e94560','#4caf50','#2196f3','#ff9800','#9c27b0','#00bcd4','#ff5722','#8bc34a'];
     ids.forEach((id, i) => { idColors[id] = palette[i % palette.length]; });
 
-    // Data range
-    let minSinr = 0, maxSinr = -200;
-    for (const step of simHistory) {
-        for (const v of step.sinr_dbs) {
-            if (v < minSinr) minSinr = v;
-            if (v > maxSinr) maxSinr = v;
+    let minV = Infinity, maxV = -Infinity;
+    for (const step of simHistory)
+        for (const v of (step[dataKey] || [])) {
+            if (v < minV) minV = v; if (v > maxV) maxV = v;
         }
-    }
-    const range = maxSinr - minSinr || 10;
-    const yMin = minSinr - range * 0.1;
-    const yMax = maxSinr + range * 0.1;
-
+    if (!isFinite(minV)) return;
+    const range = maxV - minV || 10;
+    const yMin = minV - range * 0.15;
+    const yMax = maxV + range * 0.15;
     const n = simHistory.length;
-    const stepW = plotW / Math.max(n - 1, 1);
 
-    // Grid
-    ctx.strokeStyle = '#1a2a4a';
-    ctx.lineWidth = 0.5;
-    const yTicks = 5;
+    ctx.strokeStyle = '#1a2a4a'; ctx.lineWidth = 0.5;
+    const yTicks = 4;
     for (let i = 0; i <= yTicks; i++) {
         const y = yMin + (yMax - yMin) * i / yTicks;
         const cy = margin.top + plotH - (y - yMin) / (yMax - yMin) * plotH;
         ctx.beginPath(); ctx.moveTo(margin.left, cy); ctx.lineTo(margin.left + plotW, cy); ctx.stroke();
-        ctx.fillStyle = '#556';
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(y.toFixed(1), margin.left - 5, cy + 3);
+        ctx.fillStyle = '#556'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(y.toFixed(1), margin.left - 4, cy + 3);
     }
+    ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('步骤', margin.left + plotW / 2, h - 3);
+    ctx.save(); ctx.translate(12, margin.top + plotH / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText(label, 0, 0); ctx.restore();
 
-    // Title
-    ctx.fillStyle = '#888';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('步骤', margin.left + plotW / 2, h - 2);
-    ctx.save();
-    ctx.translate(12, margin.top + plotH / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('SINR (dB)', 0, 0);
-    ctx.restore();
-
-    // Data lines: one line per radar ID
     for (const id of ids) {
-        ctx.strokeStyle = idColors[id];
-        ctx.lineWidth = 2;
-        ctx.beginPath();
+        ctx.strokeStyle = idColors[id]; ctx.lineWidth = 2; ctx.beginPath();
         const pts = [];
         for (let i = 0; i < n; i++) {
             const idx = simHistory[i].labels.indexOf(id);
-            const v = idx >= 0 ? simHistory[i].sinr_dbs[idx] : NaN;
+            const v = idx >= 0 && simHistory[i][dataKey] ? simHistory[i][dataKey][idx] : NaN;
             const cx = margin.left + (i / Math.max(n - 1, 1)) * plotW;
             const cy = margin.top + plotH - (v - yMin) / (yMax - yMin) * plotH;
             pts.push({ cx, cy, valid: !isNaN(v) });
@@ -310,33 +260,24 @@ function drawChart() {
             if (pts[i].valid) {
                 if (!drawing) { ctx.beginPath(); ctx.moveTo(pts[i].cx, pts[i].cy); drawing = true; }
                 else ctx.lineTo(pts[i].cx, pts[i].cy);
-            } else { drawing = false; }
+            } else drawing = false;
         }
         ctx.stroke();
-
-        // Legend
         const lastPts = pts.filter(p => p.valid);
         if (lastPts.length > 0) {
             const last = lastPts[lastPts.length - 1];
-            ctx.fillStyle = idColors[id];
-            ctx.font = '11px sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('R' + id, last.cx + 5, last.cy + 3);
+            ctx.fillStyle = idColors[id]; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillText('R' + id, last.cx + 4, last.cy + 3);
         }
     }
-
-    // X axis labels
-    ctx.fillStyle = '#556';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    const xStep = Math.max(1, Math.floor(n / 10));
+    const xStep = Math.max(1, Math.floor(n / 8));
+    ctx.fillStyle = '#556'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
     for (let i = 0; i < n; i += xStep) {
         const cx = margin.left + (i / Math.max(n - 1, 1)) * plotW;
-        ctx.fillText(i + 1, cx, h - margin.bottom + 15);
+        ctx.fillText(i + 1, cx, h - margin.bottom + 12);
     }
 }
 
-// ====== API calls ======
 async function fetchScene() {
     const res = await fetch('/api/scene');
     scene = await res.json();
@@ -348,9 +289,7 @@ async function updateSceneAndRedraw() {
     if (!scene) return;
     gatherControlValues(scene);
     const res = await fetch('/api/scene', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(scene)
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(scene)
     });
     scene = await res.json();
     drawSituation();
@@ -358,63 +297,89 @@ async function updateSceneAndRedraw() {
 
 async function runSim() {
     const btn = document.getElementById('btn-run');
-    btn.disabled = true;
-    setStatus('运行仿真中...');
-
-    // Sync latest controls before running
+    btn.disabled = true; setStatus('运行仿真中...');
     if (scene) {
         gatherControlValues(scene);
         await fetch('/api/scene', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(scene)
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(scene)
         });
     }
-
     const res = await fetch('/api/simulate', { method: 'POST' });
     const data = await res.json();
     const results = data.sim_results || [];
 
-    // Update table
     const tbody = document.getElementById('results-body');
     tbody.innerHTML = '';
     for (const r of results) {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + r.radar_id + '</td>' +
-            '<td>' + r.SINR_dB.toFixed(2) + '</td>' +
-            '<td>' + r.signal_power_W.toExponential(3) + '</td>' +
-            '<td>' + r.total_jam_power_W.toExponential(3) + '</td>' +
+        const score = r.jam_success_score !== undefined ? r.jam_success_score.toFixed(3) : '—';
+        const jsr = (r.jsr_dB !== undefined && isFinite(r.jsr_dB)) ? r.jsr_dB.toFixed(1) : '—';
+        const avgZeta = (r.jammer_details && r.jammer_details.length) ?
+            r.jammer_details.reduce((s, j) => s + (j.freq_match_factor || 0), 0) / r.jammer_details.length : 0;
+        const deceptStr = r.is_deception_active ? '✅ ζ=' + (r.decept_effect_score || 0).toFixed(2) : '—';
+        tr.innerHTML = '<td>R' + r.radar_id + '</td>' +
+            '<td>' + r.SINR_dB.toFixed(1) + '</td>' +
+            '<td>' + (r.total_effective_jam_power_W !== undefined ? r.total_effective_jam_power_W.toExponential(2) : '—') + '</td>' +
+            '<td>' + jsr + '</td>' +
+            '<td>' + avgZeta.toFixed(3) + '</td>' +
+            '<td>' + score + '</td>' +
             '<td class="' + (r.detect_success ? 'detect-ok' : 'detect-fail') + '">' +
-            (r.detect_success ? '✅ 检测成功' : '❌ 未检测到') + '</td>';
+            (r.detect_success ? '✅' : '❌') + '</td>' +
+            '<td>' + deceptStr + '</td>';
         tbody.appendChild(tr);
     }
 
-    // Update history
+    // Jammer detail table
+    const jbody = document.getElementById('jam-detail-body');
+    jbody.innerHTML = '';
+    for (const r of results) {
+        if (!r.jammer_details) continue;
+        for (const jd of r.jammer_details) {
+            const tr = document.createElement('tr');
+            const jamType = scene && scene.jammers ? (scene.jammers.find(j => j.id === jd.jammer_id) || {}).jam_type || '?' : '?';
+            const jamTypeLabel = jamType === 'NOISE_JAM' ? '压制' : (jamType === 'RANGE_DECEPT' ? '欺骗' : '?');
+            tr.innerHTML = '<td>R' + r.radar_id + '</td>' +
+                '<td>J' + jd.jammer_id + '</td>' +
+                '<td>' + jamTypeLabel + '</td>' +
+                '<td>' + (jd.freq_delta_Hz / 1e6).toFixed(1) + '</td>' +
+                '<td>' + (jd.freq_match_factor || 0).toFixed(4) + '</td>' +
+                '<td>' + (jd.original_power_W || 0).toExponential(2) + '</td>' +
+                '<td>' + (jd.effective_power_W || 0).toExponential(2) + '</td>';
+            jbody.appendChild(tr);
+        }
+    }
+
     const step = {
         labels: results.map(r => r.radar_id),
-        sinr_dbs: results.map(r => r.SINR_dB)
+        sinr_dbs: results.map(r => r.SINR_dB),
+        jsr_dbs: results.map(r => isFinite(r.jsr_dB) ? r.jsr_dB : -120),
+        jam_scores: results.map(r => r.jam_success_score || 0),
+        freq_zeta: results.map(r => {
+            if (!r.jammer_details || !r.jammer_details.length) return 0;
+            return r.jammer_details.reduce((s, j) => s + (j.freq_match_factor || 0), 0) / r.jammer_details.length;
+        })
     };
     simHistory.push(step);
     if (simHistory.length > maxHistorySteps) simHistory.shift();
 
-    drawChart();
+    drawChart('chart-canvas', 'sinr_dbs', 'SINR (dB)');
+    drawChart('freq-match-canvas', 'freq_zeta', '频域匹配系数 ζ');
     setStatus('仿真完成 (步骤 ' + simHistory.length + ')');
     btn.disabled = false;
 }
 
 async function resetConfig() {
-    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
     simHistory = [];
     const res = await fetch('/api/scene', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        method: 'POST', headers: {'Content-Type':'application/json'},
         body: await fetch('/api/scene').then(r => r.text())
     });
     scene = await res.json();
-    buildControls(scene);
-    drawSituation();
+    buildControls(scene); drawSituation();
     document.getElementById('results-body').innerHTML = '';
-    drawChart();
+    document.getElementById('jam-detail-body').innerHTML = '';
+    drawChart('chart-canvas', 'sinr_dbs', 'SINR (dB)');
+    drawChart('freq-match-canvas', 'freq_zeta', '频域匹配系数 ζ');
     setStatus('配置已重置');
 }
 
@@ -422,39 +387,34 @@ function setStatus(msg) {
     document.getElementById('status').textContent = msg;
 }
 
-// ====== Controls UI ======
 function buildControls(scene) {
     if (!scene) return;
     const container = document.getElementById('controls-container');
     container.innerHTML = '';
-
     for (const r of (scene.radars || [])) {
-        const g = document.createElement('div');
-        g.className = 'entity-group';
+        const g = document.createElement('div'); g.className = 'entity-group';
         g.innerHTML = '<h3>📡 雷达 R' + r.id + '</h3>' +
             makeSlider('x', r.id, 'X (m)', r.x, -10000, 20000, 100) +
             makeSlider('y', r.id, 'Y (m)', r.y, -10000, 20000, 100) +
-            makeSlider('Pt_dBm', r.id, '发射功率 (dBm)', r.Pt_dBm, 0, 80, 1) +
-            makeSlider('G_dB', r.id, '天线增益 (dB)', r.G_dB, 0, 50, 0.5) +
-            makeSlider('freq', r.id, '频率 (GHz)', r.freq / 1e9, 1, 20, 0.1, 'freq') +
-            makeSlider('bandwidth', r.id, '带宽 (MHz)', r.bandwidth / 1e6, 0.1, 10, 0.1, 'bw') +
-            makeSlider('sigma', r.id, 'RCS (m²)', r.sigma, 0.1, 20, 0.5) +
-            makeSlider('thresh_db', r.id, '检测门限 (dB)', r.thresh_db, -80, 0, 1);
+            makeSlider('Pt_dBm', r.id, '功率(dBm)', r.Pt_dBm, 0, 80, 1) +
+            makeSlider('G_dB', r.id, '增益(dB)', r.G_dB, 0, 50, 0.5) +
+            makeSlider('freq', r.id, '频率(GHz)', r.freq / 1e9, 1, 20, 0.1, 'freq') +
+            makeSlider('bandwidth', r.id, '带宽(MHz)', r.bandwidth / 1e6, 0.1, 10, 0.1, 'bw') +
+            makeSlider('sigma', r.id, 'RCS(m²)', r.sigma, 0.1, 20, 0.5) +
+            makeSlider('thresh_db', r.id, '门限(dB)', r.thresh_db, -80, 0, 1);
         container.appendChild(g);
     }
-
     for (const j of (scene.jammers || [])) {
-        const g = document.createElement('div');
-        g.className = 'entity-group';
+        const g = document.createElement('div'); g.className = 'entity-group';
         const typeOpts = '<option value="NOISE_JAM"' + (j.jam_type === 'NOISE_JAM' ? ' selected' : '') + '>噪声压制</option>' +
             '<option value="RANGE_DECEPT"' + (j.jam_type === 'RANGE_DECEPT' ? ' selected' : '') + '>距离欺骗</option>';
         g.innerHTML = '<h3>📻 干扰机 J' + j.id + '</h3>' +
             makeSlider('x', 'j' + j.id, 'X (m)', j.x, -10000, 20000, 100) +
             makeSlider('y', 'j' + j.id, 'Y (m)', j.y, -10000, 20000, 100) +
-            makeSlider('Pj_dBm', 'j' + j.id, '干扰功率 (dBm)', j.Pj_dBm, 0, 60, 1) +
-            makeSlider('Gj_dB', 'j' + j.id, '天线增益 (dB)', j.Gj_dB, 0, 40, 0.5) +
-            makeSlider('jam_freq', 'j' + j.id, '干扰频率 (GHz)', j.jam_freq / 1e9, 1, 20, 0.1, 'freq') +
-            '<div class="param-row"><label>干扰样式</label>' +
+            makeSlider('Pj_dBm', 'j' + j.id, '功率(dBm)', j.Pj_dBm, 0, 60, 1) +
+            makeSlider('Gj_dB', 'j' + j.id, '增益(dB)', j.Gj_dB, 0, 40, 0.5) +
+            makeSlider('jam_freq', 'j' + j.id, '频率(GHz)', j.jam_freq / 1e9, 1, 20, 0.1, 'freq') +
+            '<div class="param-row"><label>样式</label>' +
             '<select id="jam_type_j' + j.id + '" onchange="onControlChange()">' + typeOpts + '</select></div>';
         container.appendChild(g);
     }
@@ -462,11 +422,10 @@ function buildControls(scene) {
 
 function makeSlider(param, id, label, value, min, max, step, group) {
     const uid = param + '_' + id;
-    const extra = typeof value === 'number' ? '' : '';
     return '<div class="param-row">' +
         '<label>' + label + '</label>' +
-        '<input type="range" id="slider_' + uid + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '" oninput="onSliderChange(\'' + uid + '\',\'' + group + '\')">' +
-        '<input type="number" id="num_' + uid + '" value="' + (group === 'freq' ? (value).toFixed(2) : value) + '" step="' + step + '" onchange="onNumChange(\'' + uid + '\',\'' + min + '\',\'' + max + '\',\'' + group + '\')">' +
+        '<input type="range" id="slider_' + uid + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '" oninput="onSliderChange(\'' + uid + '\',\'' + (group || '') + '\')">' +
+        '<input type="number" id="num_' + uid + '" value="' + (group === 'freq' ? (value).toFixed(2) : value) + '" step="' + step + '" onchange="onNumChange(\'' + uid + '\',\'' + min + '\',\'' + max + '\',\'' + (group || '') + '\')">' +
         '</div>';
 }
 
@@ -492,9 +451,7 @@ function onNumChange(uid, min, max, group) {
     }
 }
 
-function onControlChange() {
-    scheduleSceneUpdate();
-}
+function onControlChange() { scheduleSceneUpdate(); }
 
 let updateTimeout = null;
 function scheduleSceneUpdate() {
@@ -505,20 +462,14 @@ function scheduleSceneUpdate() {
 function gatherControlValues(scene) {
     if (!scene) return;
     for (const r of (scene.radars || [])) {
-        r.x = getNum('x_' + r.id);
-        r.y = getNum('y_' + r.id);
-        r.Pt_dBm = getNum('Pt_dBm_' + r.id);
-        r.G_dB = getNum('G_dB_' + r.id);
-        r.freq = getNum('freq_' + r.id) * 1e9;
-        r.bandwidth = getNum('bandwidth_' + r.id) * 1e6;
-        r.sigma = getNum('sigma_' + r.id);
-        r.thresh_db = getNum('thresh_db_' + r.id);
+        r.x = getNum('x_' + r.id); r.y = getNum('y_' + r.id);
+        r.Pt_dBm = getNum('Pt_dBm_' + r.id); r.G_dB = getNum('G_dB_' + r.id);
+        r.freq = getNum('freq_' + r.id) * 1e9; r.bandwidth = getNum('bandwidth_' + r.id) * 1e6;
+        r.sigma = getNum('sigma_' + r.id); r.thresh_db = getNum('thresh_db_' + r.id);
     }
     for (const j of (scene.jammers || [])) {
-        j.x = getNum('x_j' + j.id);
-        j.y = getNum('y_j' + j.id);
-        j.Pj_dBm = getNum('Pj_dBm_j' + j.id);
-        j.Gj_dB = getNum('Gj_dB_j' + j.id);
+        j.x = getNum('x_j' + j.id); j.y = getNum('y_j' + j.id);
+        j.Pj_dBm = getNum('Pj_dBm_j' + j.id); j.Gj_dB = getNum('Gj_dB_j' + j.id);
         j.jam_freq = getNum('jam_freq_j' + j.id) * 1e9;
         const sel = document.getElementById('jam_type_j' + j.id);
         if (sel) j.jam_type = sel.value;
@@ -530,14 +481,11 @@ function getNum(id) {
     return el ? parseFloat(el.value) || 0 : 0;
 }
 
-// ====== Init ======
-window.addEventListener('load', async () => {
-    await fetchScene();
-});
-
+window.addEventListener('load', async () => { await fetchScene(); });
 window.addEventListener('resize', () => {
     drawSituation();
-    drawChart();
+    drawChart('chart-canvas', 'sinr_dbs', 'SINR (dB)');
+    drawChart('freq-match-canvas', 'freq_zeta', '频域匹配系数 ζ');
 });
 </script>
 </body>
