@@ -10,11 +10,12 @@
  *   POST /api/simulate  — run one simulation step (optionally with body config), return results
  */
 
-#include <TcpServer.h>
-#include <my_web_app_v1.h>
+#include <my_http_lib/TcpServer.h>
+#include <my_http_lib/my_web_app_v1.h>
 #include <sence/sim_scene.h>
 #include <algo/math_const.h>
 #include <jsoncpp/json/json.h>
+#include <my_http_lib/MySimpleServerLog.h>
 
 #include <fstream>
 #include <sstream>
@@ -147,6 +148,7 @@ extern "C" void* handleIndex(service_element_t *self, http_request_context_t *ct
     char *body = (char*)malloc(ctx->resp_body_len + 1);
     if (!body) return NULL;
     memcpy(body, g_index_html.data(), ctx->resp_body_len + 1);
+    LOG_INFO("GET /, status 200");
     return body;
 }
 
@@ -160,6 +162,7 @@ extern "C" void* handleApiScene(service_element_t *self, http_request_context_t 
         char *body = (char*)malloc(ctx->resp_body_len + 1);
         if (!body) return NULL;
         memcpy(body, json.data(), ctx->resp_body_len + 1);
+        LOG_INFO("GET /api/scene, status 200");
         return body;
     }
 
@@ -167,6 +170,7 @@ extern "C" void* handleApiScene(service_element_t *self, http_request_context_t 
         std::string bodyStr(ctx->content, ctx->content_len);
         if (!loadSceneFromStringWithShadow(bodyStr)) {
             ctx->resp_body_len = 0;
+            LOG_ERROR("POST /api/scene, status 500");
             return NULL;  /* 500 */
         }
         std::string json = getSceneJson();
@@ -175,9 +179,11 @@ extern "C" void* handleApiScene(service_element_t *self, http_request_context_t 
         char *body = (char*)malloc(ctx->resp_body_len + 1);
         if (!body) return NULL;
         memcpy(body, json.data(), ctx->resp_body_len + 1);
+        LOG_INFO("POST /api/scene, status 200");
         return body;
     }
-
+    
+    LOG_ERROR("POST /api/scene, status 404");
     return NULL; /* 404 / 405 */
 }
 
@@ -195,6 +201,7 @@ extern "C" void* handleApiSimulate(service_element_t *self, http_request_context
     char *body = (char*)malloc(ctx->resp_body_len + 1);
     if (!body) return NULL;
     memcpy(body, json.data(), ctx->resp_body_len + 1);
+    LOG_INFO("GET /api/simulate, status 200");
     return body;
 }
 
@@ -256,7 +263,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Create TCP server */
-    my_tcp_server_t *server = makeMyTcpServer((char*)"0.0.0.0", 8080);
+    my_tcp_server_t *server = makeMyTcpServer((char*)"0.0.0.0", 8088);
     if (!server) {
         std::cerr << "makeMyTcpServer failed\n";
         deleteMyWebAppV1(app);
@@ -267,7 +274,7 @@ int main(int argc, char *argv[]) {
     myTcpServerSetCliSkReadCbArgs(server,
         makeCliSkReadCbArgs(myWebAppV1MakeResponse, app));
 
-    std::cout << "ECMSim Web Server running at http://localhost:8080\n";
+    std::cout << "ECMSim Web Server running at http://localhost:8088\n";
     myTcpServerStart(server);
 
     /* Cleanup (unreachable unless server stops) */

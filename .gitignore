@@ -2,6 +2,7 @@ bin/
 build/
 lib/
 third_party/
+.vscode
 
 .so
 .o

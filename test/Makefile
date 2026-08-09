@@ -62,13 +62,13 @@ WEB_SRC := web_server.cpp
 WEB_TARGET := $(BIN_DIR)/web_serv
 
 # Extra include path for the C HTTP library headers (my_web_app_v1.h, TcpServer.h, etc.)
-WEB_INCS := $(INCS) -I../include/my_http_lib
+# WEB_INCS := $(INCS) -I../include/my_http_lib
 # Link the pre-built libreactor.so; use $ORIGIN rpath so the binary finds it at runtime
 WEB_LIBS := -L../lib -lreactor -Wl,-rpath,'$$ORIGIN/../lib'
 
 $(WEB_TARGET): $(LIB_OBJS) $(WEB_SRC)
 	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(WEB_INCS) $(LIB_OBJS) $(WEB_SRC) -o $@ $(WEB_LIBS)
+	$(CXX) $(CXXFLAGS) $(INCS) $(LIB_OBJS) $(WEB_SRC) -o $@ $(WEB_LIBS)
 
 .PHONY: web web-run
 web: $(WEB_TARGET)
