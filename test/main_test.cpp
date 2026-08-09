@@ -78,6 +78,26 @@ Json::Value simResultToJson(const std::vector<ECMSim::RadarSimResult>& results) 
         item["SINR_lin"] = res.sinr_lin;
         item["SINR_dB"] = res.sinr_db;
         item["detect_success"] = res.detect_ok;
+
+        item["total_effective_jam_power_W"] = res.total_effective_jam_power;
+        item["jsr_lin"] = res.jsr_lin;
+        item["jsr_dB"] = res.jsr_db;
+        item["jam_success_score"] = res.jam_success_score;
+        item["is_deception_active"] = res.is_deception_active;
+        item["decept_effect_score"] = res.decept_effect_score;
+
+        Json::Value jamDetails(Json::arrayValue);
+        for (size_t i = 0; i < res.jammer_ids.size(); i++) {
+            Json::Value jd;
+            jd["jammer_id"] = res.jammer_ids[i];
+            jd["freq_delta_Hz"] = res.jam_freq_deltas[i];
+            jd["freq_match_factor"] = res.freq_match_factors[i];
+            jd["original_power_W"] = res.original_jam_powers[i];
+            jd["effective_power_W"] = res.effective_jam_powers[i];
+            jamDetails.append(jd);
+        }
+        item["jammer_details"] = jamDetails;
+
         arr.append(item);
     }
     root["sim_results"] = arr;
@@ -111,6 +131,26 @@ int main(int argc, char** argv) {
         std::ofstream outFile("result_output.json");
         outFile << jsonOut;
         outFile.close();
+        // 打印多维度评估摘要
+        std::cout << "\n========== 多维度评估摘要 ==========\n";
+        for (const auto& res : simRes) {
+            std::cout << "雷达 R" << res.radar_id << ":\n";
+            std::cout << "  SINR = " << res.sinr_db << " dB\n";
+            std::cout << "  JSR(干信比) = " << res.jsr_db << " dB\n";
+            std::cout << "  有效干扰功率 = " << res.total_effective_jam_power << " W\n";
+            std::cout << "  干扰成功率 = " << res.jam_success_score << " (0~1)\n";
+            std::cout << "  检测结果: " << (res.detect_ok ? "✅ 成功" : "❌ 失败") << "\n";
+            if (res.is_deception_active) {
+                std::cout << "  欺骗干扰: 活跃 (效能=" << res.decept_effect_score << ")\n";
+            }
+            for (size_t i = 0; i < res.jammer_ids.size(); i++) {
+                std::cout << "  干扰机 J" << res.jammer_ids[i] << ": "
+                          << "频差=" << res.jam_freq_deltas[i] << "Hz, "
+                          << "匹配系数ζ=" << res.freq_match_factors[i] << ", "
+                          << "有效功率=" << res.effective_jam_powers[i] << "W\n";
+            }
+        }
+
         std::cout << "\nResult saved to result_output.json" << std::endl;
     }catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

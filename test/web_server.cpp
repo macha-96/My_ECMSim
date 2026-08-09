@@ -108,13 +108,35 @@ static std::string runSimulation() {
     Json::Value arr(Json::arrayValue);
     for (const auto &r : results) {
         Json::Value item;
-        item["radar_id"]         = r.radar_id;
-        item["signal_power_W"]   = r.signal_power;
+        item["radar_id"]          = r.radar_id;
+        item["signal_power_W"]    = r.signal_power;
         item["total_jam_power_W"] = r.total_jam_power;
-        item["noise_power_W"]    = r.noise_power;
-        item["SINR_lin"]         = r.sinr_lin;
-        item["SINR_dB"]          = r.sinr_db;
-        item["detect_success"]   = r.detect_ok;
+        item["noise_power_W"]     = r.noise_power;
+        item["SINR_lin"]          = r.sinr_lin;
+        item["SINR_dB"]           = r.sinr_db;
+        item["detect_success"]    = r.detect_ok;
+
+        // 多维度评估新字段
+        item["total_effective_jam_power_W"] = r.total_effective_jam_power;
+        item["jsr_lin"]     = r.jsr_lin;
+        item["jsr_dB"]      = r.jsr_db;
+        item["jam_success_score"] = r.jam_success_score;
+        item["is_deception_active"] = r.is_deception_active;
+        item["decept_effect_score"] = r.decept_effect_score;
+
+        // 各干扰机明细
+        Json::Value jamDetails(Json::arrayValue);
+        for (size_t i = 0; i < r.jammer_ids.size(); i++) {
+            Json::Value jd;
+            jd["jammer_id"]            = r.jammer_ids[i];
+            jd["freq_delta_Hz"]        = r.jam_freq_deltas[i];
+            jd["freq_match_factor"]    = r.freq_match_factors[i];
+            jd["original_power_W"]     = r.original_jam_powers[i];
+            jd["effective_power_W"]    = r.effective_jam_powers[i];
+            jamDetails.append(jd);
+        }
+        item["jammer_details"] = jamDetails;
+
         arr.append(item);
     }
     root["sim_results"] = arr;
@@ -261,13 +283,13 @@ int main(int argc, char *argv[]) {
         for (auto *r : routes) if (r) deleteServiceElement(r);
         return 1;
     }
+    // app owns the routes now — do NOT manually free them
 
     /* Create TCP server */
-    my_tcp_server_t *server = makeMyTcpServer((char*)"0.0.0.0", 8088);
+    my_tcp_server_t *server = makeMyTcpServer((char*)"0.0.0.0", 8080);
     if (!server) {
         std::cerr << "makeMyTcpServer failed\n";
-        deleteMyWebAppV1(app);
-        for (auto *r : routes) if (r) deleteServiceElement(r);
+        deleteMyWebAppV1(app);  // frees routes internally
         return 1;
     }
 
@@ -277,10 +299,9 @@ int main(int argc, char *argv[]) {
     std::cout << "ECMSim Web Server running at http://localhost:8088\n";
     myTcpServerStart(server);
 
-    /* Cleanup (unreachable unless server stops) */
+    /* Cleanup — deleteMyWebAppV1 frees the trie and all route nodes */
     deleteMyTcpServer(server);
     deleteMyWebAppV1(app);
-    for (auto *r : routes) if (r) deleteServiceElement(r);
 
     return 0;
 }

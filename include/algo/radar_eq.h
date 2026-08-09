@@ -27,6 +27,23 @@ double calcSINR(double signal_pow, double jam_pow, double noise_pow);
 // 二维距离计算 (x1,y1)雷达坐标 (x2,y2)干扰/目标坐标
 double calc2DDistance(double x1, double y1, double x2, double y2);
 
+// ========== 瞄频干扰频域匹配模型 ==========
+
+// 矩形窗频域匹配系数（工程标准压制干扰）
+// Δf:频差Hz, B:雷达带宽Hz, 返回[0,1]
+double freqMatchRect(double delta_f, double B);
+
+// 高斯平滑频域匹配系数（智能训练用，连续梯度）
+// Δf:频差Hz, B:雷达带宽Hz, σ=B/4, 返回[0,1]
+double freqMatchGauss(double delta_f, double B);
+
+// 计算有效干扰功率（含频域匹配衰减）
+// Pj_space:空间到达功率W, delta_f:频差Hz, B:带宽Hz, useGauss:是否使用高斯模型
+double effectiveJamPower(double Pj_space, double delta_f, double B, bool useGauss = false);
+
+// 计算干信比JSR(线性值)：有效干扰功率 / 信号功率
+double calcJSR(double jam_power, double signal_power);
+
 }
 
 #endif

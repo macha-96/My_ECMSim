@@ -1,6 +1,10 @@
 #ifndef MY_SIMPLE_SERVER_LOG_H
 #define MY_SIMPLE_SERVER_LOG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <time.h>
 
@@ -42,5 +46,9 @@ static const char* log_level_str[] = {
 #define LOG_WARN(fmt, ...)  LOG_BASE(LOG_WARN,  fmt, ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) LOG_BASE(LOG_ERROR, fmt, ##__VA_ARGS__)
 #define LOG_FATAL(fmt, ...) LOG_BASE(LOG_FATAL, fmt, ##__VA_ARGS__)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

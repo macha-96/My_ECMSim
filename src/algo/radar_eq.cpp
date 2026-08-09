@@ -41,7 +41,7 @@ double radarEchoPower(double Pt, double Gt, double Gr, double sigma, double r, d
     // 获取电磁波波长
     double lambda = C / freq;
     // 标准雷达方程计算目标回波功率
-    double Pr = (Pt * Gt * Gr * sigma * lambda * lambda) / std::pow(4 * M_PI, 3) / std::pow(r, 4);
+    // double Pr = (Pt * Gt * Gr * sigma * lambda * lambda) / std::pow(4 * M_PI, 3) / std::pow(r, 4);
     return Pt * Gt * Gr * sigma * lambda * lambda / (std::pow(4 * M_PI, 3) * std::pow(r, 4));
 }
 
@@ -108,6 +108,27 @@ double calc2DDistance(double x1, double y1, double x2, double y2) {
     double dy = y1 - y2;
     // 勾股定理计算欧式距离
     return std::sqrt(dx * dx + dy * dy);
+}
+
+// ========== 瞄频干扰频域匹配模型 ==========
+
+double freqMatchRect(double delta_f, double B) {
+    return delta_f <= B / 2.0 ? 1.0 : 0.0;
+}
+
+double freqMatchGauss(double delta_f, double B) {
+    double sigma = B / 4.0;
+    return std::exp(-delta_f * delta_f / (2.0 * sigma * sigma));
+}
+
+double effectiveJamPower(double Pj_space, double delta_f, double B, bool useGauss) {
+    double zeta = useGauss ? freqMatchGauss(delta_f, B) : freqMatchRect(delta_f, B);
+    return Pj_space * zeta;
+}
+
+double calcJSR(double jam_power, double signal_power) {
+    if (signal_power <= 1e-30) return 1e12;
+    return jam_power / signal_power;
 }
 
 } // namespace ECMAlgo
