@@ -8,65 +8,31 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:16px}
 h1{text-align:center;color:#e94560;margin-bottom:16px;font-size:24px}
-
-/* ========== 布局修改：第一行：态势｜仿真结果；第二行：参数｜干扰明细 ========== */
-.layout{
-    display:flex;
-    flex-wrap:wrap;
-    gap:12px;
-}
-.layout-row{
-    display:flex;
-    flex-wrap:wrap;
-    gap:12px;
-    width:100%;
-}
-.layout-row > .panel {
-    flex: 1 1 calc(50% - 6px);
-    min-width:420px;
-    max-width:100%;
-}
-
+.layout{display:flex;flex-wrap:wrap;gap:12px}
+.layout-row{display:flex;flex-wrap:wrap;gap:12px;width:100%}
+.layout-row>.panel{flex:1 1 calc(50% - 6px);min-width:420px;max-width:100%}
 .panel{background:#16213e;border-radius:8px;padding:14px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
 .panel h2{color:#0f3460;font-size:15px;margin-bottom:8px;border-bottom:1px solid #0f3460;padding-bottom:5px}
-
-#situation canvas{width:100%;height:340px;background:#0d1b2a;border-radius:4px;display:block}
-#controls{
-    overflow-y:auto;
-    max-height:650px;
-}
-
-/* 参数筛选按钮组 */
-.filter-btn-row{
-    display:flex;
-    gap:6px;
-    margin-bottom:10px;
-}
-.filter-btn{
-    padding:4px 12px;
-    border:1px solid #333;
-    background:#0d1b2a;
-    color:#aaa;
-    border-radius:4px;
-    cursor:pointer;
-    font-size:11px;
-}
-.filter-btn.active{
-    background:#e94560;
-    color:#fff;
-    border-color:#e94560;
-}
-
+#situation canvas{width:100%;height:340px;background:#0d1b2a;border-radius:4px;display:block;cursor:pointer}
+#controls{overflow-y:auto;max-height:650px}
+.filter-btn-row{display:flex;gap:6px;margin-bottom:10px}
+.filter-btn{padding:4px 12px;border:1px solid #333;background:#0d1b2a;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px}
+.filter-btn.active{background:#e94560;color:#fff;border-color:#e94560}
+.add-btn-row{display:flex;gap:8px;margin-bottom:10px}
+.add-btn{padding:5px 14px;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600}
+.add-btn-radar{background:#2e7d32;color:#fff}
+.add-btn-radar:hover{background:#1b5e20}
+.add-btn-jammer{background:#c62828;color:#fff}
+.add-btn-jammer:hover{background:#b71c1c}
 .entity-group{background:#1a1a40;border-radius:6px;padding:8px;margin-bottom:8px}
-.entity-group.radar-group{}
-.entity-group.jammer-group{}
-
+.entity-group h3{font-size:12px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.entity-group h3 .del-btn{margin-left:auto;background:transparent;border:none;color:#666;cursor:pointer;font-size:14px;padding:0 4px}
+.entity-group h3 .del-btn:hover{color:#f44336}
 .param-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px}
 .param-row label{flex:0 0 70px;color:#aaa;font-size:11px}
 .param-row input[type=range]{flex:1;height:3px;accent-color:#e94560}
 .param-row input[type=number]{width:70px;padding:1px 3px;background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;font-size:10px}
 .param-row select{background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;padding:1px;font-size:10px}
-
 #results-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}
 #results-table th{background:#0f3460;padding:4px 6px;text-align:left;font-weight:600;white-space:nowrap}
 #results-table td{padding:3px 6px;border-bottom:1px solid #1a1a40;white-space:nowrap}
@@ -83,105 +49,103 @@ h1{text-align:center;color:#e94560;margin-bottom:16px;font-size:24px}
 .btn-reset:hover{background:#0a2647}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .status-bar{font-size:11px;color:#888;text-align:center;margin-top:6px}
-
 #jam-detail-table{width:100%;border-collapse:collapse;font-size:11px}
 #jam-detail-table th{background:#1a1a40;padding:3px 5px;text-align:left;font-weight:600;white-space:nowrap}
 #jam-detail-table td{padding:2px 5px;border-bottom:1px solid #1a1a40;white-space:nowrap}
-
-/* 小屏幕优化：小于960px全部单列 */
-@media (max-width:960px){
-    .layout-row > .panel{
-        flex: 1 1 100%;
-    }
-}
+@media (max-width:960px){.layout-row>.panel{flex:1 1 100%}}
 </style>
 </head>
 <body>
-
 <h1>⚡ ECMSim 电子对抗仿真系统</h1>
-
 <div class="layout">
-    <!-- 第一行：态势显示 | 仿真结果 -->
-    <div class="layout-row">
-        <!-- Situation Display -->
-        <div id="situation" class="panel">
-            <h2>态势显示</h2>
-            <canvas id="situation-canvas"></canvas>
-        </div>
-
-        <!-- Results -->
-        <div id="results-panel" class="panel">
-            <h2>仿真结果</h2>
-            <div class="btn-row">
-              <button class="btn btn-run" id="btn-run" onclick="runSim()">▶ 运行仿真</button>
-              <button class="btn btn-reset" onclick="resetConfig()">↺ 重置配置</button>
-            </div>
-            <div style="overflow-x:auto">
-            <table id="results-table">
-              <thead><tr>
-                <th>雷达</th><th>SINR(dB)</th><th>有效干扰(W)</th><th>JSR(dB)</th><th>匹配系数</th><th>评分</th><th>检测</th><th>欺骗</th>
-              </tr></thead>
-              <tbody id="results-body"></tbody>
-            </table>
-            </div>
-            <div class="chart-row">
-              <div class="chart-box"><canvas id="chart-canvas"></canvas></div>
-              <div class="chart-box"><canvas id="freq-match-canvas"></canvas></div>
-            </div>
-            <div id="status" class="status-bar">就绪</div>
-        </div>
+  <div class="layout-row">
+    <div id="situation" class="panel">
+      <h2>态势显示 <span style="font-size:11px;color:#666;font-weight:normal">（拖拽实体移动）</span></h2>
+      <canvas id="situation-canvas"></canvas>
     </div>
-
-    <!-- 第二行：参数控制 | 干扰机频域明细 -->
-    <div class="layout-row">
-        <!-- Controls -->
-        <div id="controls" class="panel">
-            <h2>参数控制</h2>
-            <!-- 三栏筛选按钮：全部 / 雷达 / 干扰机 -->
-            <div class="filter-btn-row">
-                <button class="filter-btn active" data-filter="all" onclick="setParamFilter('all')">全部</button>
-                <button class="filter-btn" data-filter="radar" onclick="setParamFilter('radar')">雷达</button>
-                <button class="filter-btn" data-filter="jammer" onclick="setParamFilter('jammer')">干扰机</button>
-            </div>
-            <div id="controls-container"></div>
-        </div>
-
-        <!-- Jammer Detail -->
-        <div id="jam-detail-panel" class="panel">
-            <h2>干扰机频域匹配明细</h2>
-            <div style="overflow-x:auto">
-            <table id="jam-detail-table">
-              <thead><tr>
-                <th>雷达</th><th>干扰机</th><th>类型</th><th>频差(MHz)</th><th>ζ匹配系数</th><th>空间功率(W)</th><th>有效功率(W)</th>
-              </tr></thead>
-              <tbody id="jam-detail-body"></tbody>
-            </table>
-            </div>
-        </div>
+    <div id="results-panel" class="panel">
+      <h2>仿真结果</h2>
+      <div class="btn-row">
+        <button class="btn btn-run" id="btn-run" onclick="runSim()">▶ 运行仿真</button>
+        <button class="btn btn-reset" onclick="resetConfig()">↺ 重置配置</button>
+      </div>
+      <div style="overflow-x:auto">
+      <table id="results-table">
+        <thead><tr>
+          <th>雷达</th><th>SINR(dB)</th><th>有效干扰(W)</th><th>JSR(dB)</th><th>匹配系数</th><th>评分</th><th>检测</th><th>欺骗</th>
+        </tr></thead>
+        <tbody id="results-body"></tbody>
+      </table>
+      </div>
+      <div class="chart-row">
+        <div class="chart-box"><canvas id="chart-canvas"></canvas></div>
+        <div class="chart-box"><canvas id="freq-match-canvas"></canvas></div>
+      </div>
+      <div id="status" class="status-bar">就绪</div>
     </div>
+  </div>
+  <div class="layout-row">
+    <div id="controls" class="panel">
+      <h2>参数控制</h2>
+      <div class="add-btn-row">
+        <button class="add-btn add-btn-radar" onclick="addRadar()">＋ 雷达</button>
+        <button class="add-btn add-btn-jammer" onclick="addJammer()">＋ 干扰机</button>
+      </div>
+      <div class="filter-btn-row">
+        <button class="filter-btn active" data-filter="all" onclick="setParamFilter('all')">全部</button>
+        <button class="filter-btn" data-filter="radar" onclick="setParamFilter('radar')">雷达</button>
+        <button class="filter-btn" data-filter="jammer" onclick="setParamFilter('jammer')">干扰机</button>
+      </div>
+      <div id="controls-container"></div>
+    </div>
+    <div id="jam-detail-panel" class="panel">
+      <h2>干扰机频域匹配明细</h2>
+      <div style="overflow-x:auto">
+      <table id="jam-detail-table">
+        <thead><tr>
+          <th>雷达</th><th>干扰机</th><th>类型</th><th>频差(MHz)</th><th>ζ匹配系数</th><th>空间功率(W)</th><th>有效功率(W)</th>
+        </tr></thead>
+        <tbody id="jam-detail-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 let scene = null;
 let simHistory = [];
-let freqMatchHistory = [];
 let maxHistorySteps = 30;
-// 当前参数面板筛选状态 all / radar / jammer
 let currentParamFilter = 'all';
+
+// Drag state
+let dragEntity = null;      // { type: 'radar'|'jammer', id: number }
+let dragOffsetX = 0, dragOffsetY = 0;
+
+// Canvas coordinate conversion context (updated on each draw)
+let ctxInfo = { xMin:0, xMax:10000, yMin:0, yMax:10000, margin:50, scale:1, h:340 };
 
 function resizeCanvas(canvas) {
     const rect = canvas.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
-        const ctx = canvas.getContext('2d');
-        ctx.scale(dpr, dpr);
-        return { w: rect.width, h: rect.height, ctx };
-    }
-    return { w: 0, h: 0, ctx: null };
+    if (rect.width <= 0 || rect.height <= 0) return { w: 0, h: 0, ctx: null };
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return { w: rect.width, h: rect.height, ctx };
+}
+
+function toCanvas(x, y) {
+    const c = ctxInfo;
+    return { cx: c.margin + (x - c.xMin) * c.scale, cy: c.h - 20 - (y - c.yMin) * c.scale };
+}
+
+function toScene(cx, cy) {
+    const c = ctxInfo;
+    return { x: (cx - c.margin) / c.scale + c.xMin, y: (c.h - 20 - cy) / c.scale + c.yMin };
 }
 
 function drawSituation() {
@@ -207,13 +171,10 @@ function drawSituation() {
     const margin = 50;
     const plotW = w - margin - 20;
     const plotH = h - margin - 20;
-    const scaleX = plotW / (xMax - xMin);
-    const scaleY = plotH / (yMax - yMin);
-    const scale = Math.min(scaleX, scaleY);
+    const scale = Math.min(plotW / (xMax - xMin || 1), plotH / (yMax - yMin || 1));
+    ctxInfo = { xMin, xMax, yMin, yMax, margin, scale, h };
 
-    function toCanvas(x, y) {
-        return { cx: margin + (x - xMin) * scale, cy: h - 20 - (y - yMin) * scale };
-    }
+    // Grid
     ctx.strokeStyle = '#1a2a4a'; ctx.lineWidth = 0.5;
     ctx.font = '10px sans-serif'; ctx.fillStyle = '#556';
     const xSteps = 5, ySteps = 5;
@@ -234,120 +195,220 @@ function drawSituation() {
     ctx.save(); ctx.translate(10, h / 2 + 20); ctx.rotate(-Math.PI / 2);
     ctx.fillText('Y (m)', -15, 0); ctx.restore();
 
-    if (scene) {
-        ctx.strokeStyle = 'rgba(233,69,96,0.15)'; ctx.lineWidth = 1;
-        for (const r of (scene.radars || []))
-            for (const j of (scene.jammers || [])) {
-                const p1 = toCanvas(r.x, r.y), p2 = toCanvas(j.x, j.y);
-                ctx.beginPath(); ctx.moveTo(p1.cx, p1.cy); ctx.lineTo(p2.cx, p2.cy); ctx.stroke();
-            }
-        for (const r of (scene.radars || [])) {
-            const p = toCanvas(r.x, r.y);
-            ctx.beginPath(); ctx.arc(p.cx, p.cy, 12, 0, 2 * Math.PI);
-            ctx.fillStyle = '#4caf50'; ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText('R' + r.id, p.cx, p.cy + 24);
-        }
+    if (!scene) return;
+    // Connections
+    ctx.strokeStyle = 'rgba(233,69,96,0.15)'; ctx.lineWidth = 1;
+    for (const r of (scene.radars || []))
         for (const j of (scene.jammers || [])) {
-            const p = toCanvas(j.x, j.y);
-            ctx.beginPath();
-            ctx.moveTo(p.cx - 10, p.cy - 10); ctx.lineTo(p.cx + 10, p.cy + 10);
-            ctx.moveTo(p.cx + 10, p.cy - 10); ctx.lineTo(p.cx - 10, p.cy + 10);
-            ctx.strokeStyle = '#e94560'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = '#e94560'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText('J' + j.id + (j.jam_type === 'RANGE_DECEPT' ? '✧' : ''), p.cx, p.cy + 24);
+            const p1 = toCanvas(r.x, r.y), p2 = toCanvas(j.x, j.y);
+            ctx.beginPath(); ctx.moveTo(p1.cx, p1.cy); ctx.lineTo(p2.cx, p2.cy); ctx.stroke();
         }
+    // Radars
+    for (const r of (scene.radars || [])) {
+        const p = toCanvas(r.x, r.y);
+        const isDrag = dragEntity && dragEntity.type === 'radar' && dragEntity.id === r.id;
+        ctx.beginPath(); ctx.arc(p.cx, p.cy, 14, 0, 2 * Math.PI);
+        ctx.fillStyle = isDrag ? '#66bb6a' : '#4caf50'; ctx.fill();
+        ctx.strokeStyle = isDrag ? '#ffeb3b' : '#fff'; ctx.lineWidth = isDrag ? 3 : 2; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('R' + r.id, p.cx, p.cy + 26);
+    }
+    // Jammers
+    for (const j of (scene.jammers || [])) {
+        const p = toCanvas(j.x, j.y);
+        const isDrag = dragEntity && dragEntity.type === 'jammer' && dragEntity.id === j.id;
+        const s = 11;
+        ctx.beginPath();
+        ctx.moveTo(p.cx - s, p.cy - s); ctx.lineTo(p.cx + s, p.cy + s);
+        ctx.moveTo(p.cx + s, p.cy - s); ctx.lineTo(p.cx - s, p.cy + s);
+        ctx.strokeStyle = isDrag ? '#ffeb3b' : '#e94560'; ctx.lineWidth = isDrag ? 3 : 2; ctx.stroke();
+        ctx.fillStyle = '#e94560'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('J' + j.id + (j.jam_type === 'RANGE_DECEPT' ? '✧' : ''), p.cx, p.cy + 26);
     }
 }
 
-function formatNum(n) {
-    if (Math.abs(n) >= 10000) return (n / 1000).toFixed(0) + 'k';
-    return n.toFixed(0);
-}
+function formatNum(n) { return Math.abs(n) >= 10000 ? (n/1000).toFixed(0)+'k' : n.toFixed(0); }
 
-function drawChart(canvasId, dataKey, label, colorFn) {
+function drawChart(canvasId, dataKey, label) {
     const canvas = document.getElementById(canvasId);
     const { w, h, ctx } = resizeCanvas(canvas);
     if (!ctx || w < 10 || simHistory.length === 0) return;
-
-    const margin = { top: 18, right: 15, bottom: 30, left: 50 };
+    const margin = { top:18, right:15, bottom:30, left:50 };
     const plotW = w - margin.left - margin.right;
     const plotH = h - margin.top - margin.bottom;
     ctx.clearRect(0, 0, w, h);
-
     const radarIds = new Set();
-    for (const step of simHistory)
-        for (const id of step.labels) radarIds.add(id);
+    for (const step of simHistory) for (const id of step.labels) radarIds.add(id);
     const ids = Array.from(radarIds).sort();
     const palette = ['#e94560','#4caf50','#2196f3','#ff9800','#9c27b0','#00bcd4'];
-    const idColors = {};
-    ids.forEach((id, i) => { idColors[id] = palette[i % palette.length]; });
-
+    const idColors = {}; ids.forEach((id,i)=>idColors[id]=palette[i%palette.length]);
     let minV = Infinity, maxV = -Infinity;
-    for (const step of simHistory)
-        for (const v of (step[dataKey] || [])) {
-            if (v < minV) minV = v; if (v > maxV) maxV = v;
-        }
+    for (const step of simHistory) for (const v of (step[dataKey]||[])) { if(v<minV)minV=v; if(v>maxV)maxV=v; }
     if (!isFinite(minV)) return;
     const range = maxV - minV || 10;
-    const yMin = minV - range * 0.15;
-    const yMax = maxV + range * 0.15;
+    const yMin = minV - range*0.15, yMax = maxV + range*0.15;
     const n = simHistory.length;
-
-    ctx.strokeStyle = '#1a2a4a'; ctx.lineWidth = 0.5;
-    const yTicks = 4;
-    for (let i = 0; i <= yTicks; i++) {
-        const y = yMin + (yMax - yMin) * i / yTicks;
-        const cy = margin.top + plotH - (y - yMin) / (yMax - yMin) * plotH;
-        ctx.beginPath(); ctx.moveTo(margin.left, cy); ctx.lineTo(margin.left + plotW, cy); ctx.stroke();
-        ctx.fillStyle = '#556'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
-        ctx.fillText(y.toFixed(1), margin.left - 4, cy + 3);
+    ctx.strokeStyle='#1a2a4a'; ctx.lineWidth=0.5;
+    for (let i=0;i<=4;i++) {
+        const y = yMin + (yMax-yMin)*i/4;
+        const cy = margin.top + plotH - (y-yMin)/(yMax-yMin)*plotH;
+        ctx.beginPath(); ctx.moveTo(margin.left,cy); ctx.lineTo(margin.left+plotW,cy); ctx.stroke();
+        ctx.fillStyle='#556'; ctx.font='9px sans-serif'; ctx.textAlign='right';
+        ctx.fillText(y.toFixed(1), margin.left-4, cy+3);
     }
-    ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('步骤', margin.left + plotW / 2, h - 3);
-    ctx.save(); ctx.translate(12, margin.top + plotH / 2); ctx.rotate(-Math.PI / 2);
-    ctx.fillText(label, 0, 0); ctx.restore();
-
+    ctx.fillStyle='#666'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('步骤', margin.left+plotW/2, h-3);
+    ctx.save(); ctx.translate(12,margin.top+plotH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText(label,0,0); ctx.restore();
     for (const id of ids) {
-        ctx.strokeStyle = idColors[id]; ctx.lineWidth = 2; ctx.beginPath();
-        const pts = [];
-        for (let i = 0; i < n; i++) {
-            const idx = simHistory[i].labels.indexOf(id);
-            const v = idx >= 0 && simHistory[i][dataKey] ? simHistory[i][dataKey][idx] : NaN;
-            const cx = margin.left + (i / Math.max(n - 1, 1)) * plotW;
-            const cy = margin.top + plotH - (v - yMin) / (yMax - yMin) * plotH;
-            pts.push({ cx, cy, valid: !isNaN(v) });
+        ctx.strokeStyle=idColors[id]; ctx.lineWidth=2; ctx.beginPath();
+        const pts=[];
+        for (let i=0;i<n;i++) {
+            const idx=simHistory[i].labels.indexOf(id);
+            const v=idx>=0&&simHistory[i][dataKey]?simHistory[i][dataKey][idx]:NaN;
+            const cx=margin.left+(i/Math.max(n-1,1))*plotW;
+            const cy=margin.top+plotH-(v-yMin)/(yMax-yMin)*plotH;
+            pts.push({cx,cy,valid:!isNaN(v)});
         }
-        let drawing = false;
-        for (let i = 0; i < pts.length; i++) {
-            if (pts[i].valid) {
-                if (!drawing) { ctx.beginPath(); ctx.moveTo(pts[i].cx, pts[i].cy); drawing = true; }
-                else ctx.lineTo(pts[i].cx, pts[i].cy);
-            } else drawing = false;
+        let drawing=false;
+        for (let i=0;i<pts.length;i++) {
+            if(pts[i].valid){if(!drawing){ctx.beginPath();ctx.moveTo(pts[i].cx,pts[i].cy);drawing=true;}else ctx.lineTo(pts[i].cx,pts[i].cy);}
+            else drawing=false;
         }
         ctx.stroke();
-        const lastPts = pts.filter(p => p.valid);
-        if (lastPts.length > 0) {
-            const last = lastPts[lastPts.length - 1];
-            ctx.fillStyle = idColors[id]; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
-            ctx.fillText('R' + id, last.cx + 4, last.cy + 3);
-        }
+        const last=pts.filter(p=>p.valid); if(last.length>0){const l=last[last.length-1]; ctx.fillStyle=idColors[id]; ctx.font='10px sans-serif'; ctx.textAlign='left'; ctx.fillText('R'+id,l.cx+4,l.cy+3);}
     }
-    const xStep = Math.max(1, Math.floor(n / 8));
-    ctx.fillStyle = '#556'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
-    for (let i = 0; i < n; i += xStep) {
-        const cx = margin.left + (i / Math.max(n - 1, 1)) * plotW;
-        ctx.fillText(i + 1, cx, h - margin.bottom + 12);
-    }
+    const xStep=Math.max(1,Math.floor(n/8));
+    ctx.fillStyle='#556'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    for (let i=0;i<n;i+=xStep) { const cx=margin.left+(i/Math.max(n-1,1))*plotW; ctx.fillText(i+1,cx,h-margin.bottom+12); }
 }
 
-async function fetchScene() {
-    const res = await fetch('/api/scene');
-    scene = await res.json();
+/* ====== Canvas drag-and-drop ====== */
+function getCanvasMousePos(e) {
+    const rect = document.getElementById('situation-canvas').getBoundingClientRect();
+    return { cx: e.clientX - rect.left, cy: e.clientY - rect.top };
+}
+
+function hitTestEntity(cx, cy) {
+    if (!scene) return null;
+    const hitRadius = 18;
+    for (const r of (scene.radars || [])) {
+        const p = toCanvas(r.x, r.y);
+        const dx = cx - p.cx, dy = cy - p.cy;
+        if (dx*dx + dy*dy <= hitRadius*hitRadius) return { type: 'radar', id: r.id };
+    }
+    for (const j of (scene.jammers || [])) {
+        const p = toCanvas(j.x, j.y);
+        const dx = cx - p.cx, dy = cy - p.cy;
+        if (dx*dx + dy*dy <= hitRadius*hitRadius) return { type: 'jammer', id: j.id };
+    }
+    return null;
+}
+
+function onCanvasMouseDown(e) {
+    const pos = getCanvasMousePos(e);
+    const hit = hitTestEntity(pos.cx, pos.cy);
+    if (!hit) return;
+    dragEntity = hit;
+    const sc = toScene(pos.cx, pos.cy);
+    const ent = hit.type === 'radar'
+        ? scene.radars.find(r => r.id === hit.id)
+        : scene.jammers.find(j => j.id === hit.id);
+    if (!ent) { dragEntity = null; return; }
+    dragOffsetX = sc.x - ent.x;
+    dragOffsetY = sc.y - ent.y;
+    e.preventDefault();
+}
+
+function onCanvasMouseMove(e) {
+    if (!dragEntity || !scene) return;
+    const pos = getCanvasMousePos(e);
+    const sc = toScene(pos.cx, pos.cy);
+    const ent = dragEntity.type === 'radar'
+        ? scene.radars.find(r => r.id === dragEntity.id)
+        : scene.jammers.find(j => j.id === dragEntity.id);
+    if (!ent) return;
+    ent.x = Math.round(sc.x - dragOffsetX);
+    ent.y = Math.round(sc.y - dragOffsetY);
+    // Update number inputs
+    const prefix = dragEntity.type === 'radar' ? '' : 'j';
+    const xNum = document.getElementById('num_x_' + prefix + dragEntity.id);
+    const yNum = document.getElementById('num_y_' + prefix + dragEntity.id);
+    if (xNum) { xNum.value = ent.x; const xs = document.getElementById('slider_x_' + prefix + dragEntity.id); if(xs) xs.value = ent.x; }
+    if (yNum) { yNum.value = ent.y; const ys = document.getElementById('slider_y_' + prefix + dragEntity.id); if(ys) ys.value = ent.y; }
+    drawSituation();
+    e.preventDefault();
+}
+
+function onCanvasMouseUp(e) {
+    if (!dragEntity) return;
+    dragEntity = null;
+    drawSituation();
+    scheduleSceneUpdate(); // sync backend
+    e.preventDefault();
+}
+
+function onCanvasMouseLeave(e) {
+    if (dragEntity) { onCanvasMouseUp(e); }
+}
+
+/* ====== Add / Remove entities ====== */
+function nextId(arr, prefix) {
+    const ids = (arr||[]).map(e => e.id);
+    if (ids.length === 0) return 1;
+    return Math.max(...ids) + 1;
+}
+
+function addRadar() {
+    if (!scene) return;
+    const id = nextId(scene.radars);
+    scene.radars.push({
+        id, x: 5000, y: 5000, Pt_dBm: 20, G_dB: 25,
+        freq: 10e9, bandwidth: 1e6, sigma: 5, thresh_db: -50
+    });
+    rebuildAndSync();
+}
+
+function addJammer() {
+    if (!scene) return;
+    const id = nextId(scene.jammers);
+    scene.jammers.push({
+        id, x: 6000, y: 6000, Pj_dBm: 40, Gj_dB: 20,
+        jam_freq: 10e9, jam_type: 'NOISE_JAM'
+    });
+    rebuildAndSync();
+}
+
+function removeEntity(type, id) {
+    if (!scene) return;
+    if (type === 'radar') {
+        scene.radars = scene.radars.filter(r => r.id !== id);
+    } else {
+        scene.jammers = scene.jammers.filter(j => j.id !== id);
+    }
+    rebuildAndSync();
+}
+
+async function rebuildAndSync() {
+    simHistory = [];
+    document.getElementById('results-body').innerHTML = '';
+    document.getElementById('jam-detail-body').innerHTML = '';
     buildControls(scene);
     applyParamFilter();
     drawSituation();
+    drawChart('chart-canvas','sinr_dbs','SINR (dB)');
+    drawChart('freq-match-canvas','freq_zeta','频域匹配系数 ζ');
+    // Sync backend
+    await fetch('/api/scene', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(scene)
+    });
+}
+
+/* ====== API ====== */
+async function fetchScene() {
+    const res = await fetch('/api/scene');
+    scene = await res.json();
+    buildControls(scene); applyParamFilter(); drawSituation();
 }
 
 async function updateSceneAndRedraw() {
@@ -372,9 +433,7 @@ async function runSim() {
     const res = await fetch('/api/simulate', { method: 'POST' });
     const data = await res.json();
     const results = data.sim_results || [];
-
-    const tbody = document.getElementById('results-body');
-    tbody.innerHTML = '';
+    const tbody = document.getElementById('results-body'); tbody.innerHTML = '';
     for (const r of results) {
         const tr = document.createElement('tr');
         const score = r.jam_success_score !== undefined ? r.jam_success_score.toFixed(3) : '—';
@@ -382,30 +441,21 @@ async function runSim() {
         const avgZeta = (r.jammer_details && r.jammer_details.length) ?
             r.jammer_details.reduce((s, j) => s + (j.freq_match_factor || 0), 0) / r.jammer_details.length : 0;
         const deceptStr = r.is_deception_active ? '✅ ζ=' + (r.decept_effect_score || 0).toFixed(2) : '—';
-        tr.innerHTML = '<td>R' + r.radar_id + '</td>' +
-            '<td>' + r.SINR_dB.toFixed(1) + '</td>' +
+        tr.innerHTML = '<td>R' + r.radar_id + '</td><td>' + r.SINR_dB.toFixed(1) + '</td>' +
             '<td>' + (r.total_effective_jam_power_W !== undefined ? r.total_effective_jam_power_W.toExponential(2) : '—') + '</td>' +
-            '<td>' + jsr + '</td>' +
-            '<td>' + avgZeta.toFixed(3) + '</td>' +
-            '<td>' + score + '</td>' +
-            '<td class="' + (r.detect_success ? 'detect-ok' : 'detect-fail') + '">' +
-            (r.detect_success ? '✅' : '❌') + '</td>' +
+            '<td>' + jsr + '</td><td>' + avgZeta.toFixed(3) + '</td><td>' + score + '</td>' +
+            '<td class="' + (r.detect_success ? 'detect-ok' : 'detect-fail') + '">' + (r.detect_success ? '✅' : '❌') + '</td>' +
             '<td>' + deceptStr + '</td>';
         tbody.appendChild(tr);
     }
-
-    // Jammer detail table
-    const jbody = document.getElementById('jam-detail-body');
-    jbody.innerHTML = '';
+    const jbody = document.getElementById('jam-detail-body'); jbody.innerHTML = '';
     for (const r of results) {
         if (!r.jammer_details) continue;
         for (const jd of r.jammer_details) {
             const tr = document.createElement('tr');
             const jamType = scene && scene.jammers ? (scene.jammers.find(j => j.id === jd.jammer_id) || {}).jam_type || '?' : '?';
-            const jamTypeLabel = jamType === 'NOISE_JAM' ? '压制' : (jamType === 'RANGE_DECEPT' ? '欺骗' : '?');
-            tr.innerHTML = '<td>R' + r.radar_id + '</td>' +
-                '<td>J' + jd.jammer_id + '</td>' +
-                '<td>' + jamTypeLabel + '</td>' +
+            tr.innerHTML = '<td>R' + r.radar_id + '</td><td>J' + jd.jammer_id + '</td>' +
+                '<td>' + (jamType === 'NOISE_JAM' ? '压制' : (jamType === 'RANGE_DECEPT' ? '欺骗' : '?')) + '</td>' +
                 '<td>' + (jd.freq_delta_Hz / 1e6).toFixed(1) + '</td>' +
                 '<td>' + (jd.freq_match_factor || 0).toFixed(4) + '</td>' +
                 '<td>' + (jd.original_power_W || 0).toExponential(2) + '</td>' +
@@ -413,12 +463,9 @@ async function runSim() {
             jbody.appendChild(tr);
         }
     }
-
     const step = {
         labels: results.map(r => r.radar_id),
         sinr_dbs: results.map(r => r.SINR_dB),
-        jsr_dbs: results.map(r => isFinite(r.jsr_dB) ? r.jsr_dB : -120),
-        jam_scores: results.map(r => r.jam_success_score || 0),
         freq_zeta: results.map(r => {
             if (!r.jammer_details || !r.jammer_details.length) return 0;
             return r.jammer_details.reduce((s, j) => s + (j.freq_match_factor || 0), 0) / r.jammer_details.length;
@@ -426,9 +473,8 @@ async function runSim() {
     };
     simHistory.push(step);
     if (simHistory.length > maxHistorySteps) simHistory.shift();
-
-    drawChart('chart-canvas', 'sinr_dbs', 'SINR (dB)');
-    drawChart('freq-match-canvas', 'freq_zeta', '频域匹配系数 ζ');
+    drawChart('chart-canvas','sinr_dbs','SINR (dB)');
+    drawChart('freq-match-canvas','freq_zeta','频域匹配系数 ζ');
     setStatus('仿真完成 (步骤 ' + simHistory.length + ')');
     btn.disabled = false;
 }
@@ -440,28 +486,24 @@ async function resetConfig() {
         body: await fetch('/api/scene').then(r => r.text())
     });
     scene = await res.json();
-    buildControls(scene);
-    applyParamFilter();
-    drawSituation();
+    buildControls(scene); applyParamFilter(); drawSituation();
     document.getElementById('results-body').innerHTML = '';
     document.getElementById('jam-detail-body').innerHTML = '';
-    drawChart('chart-canvas', 'sinr_dbs', 'SINR (dB)');
-    drawChart('freq-match-canvas', 'freq_zeta', '频域匹配系数 ζ');
+    drawChart('chart-canvas','sinr_dbs','SINR (dB)');
+    drawChart('freq-match-canvas','freq_zeta','频域匹配系数 ζ');
     setStatus('配置已重置');
 }
 
-function setStatus(msg) {
-    document.getElementById('status').textContent = msg;
-}
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
+/* ====== Controls UI ====== */
 function buildControls(scene) {
     if (!scene) return;
     const container = document.getElementById('controls-container');
     container.innerHTML = '';
     for (const r of (scene.radars || [])) {
-        const g = document.createElement('div');
-        g.className = 'entity-group radar-group';
-        g.innerHTML = '<h3>📡 雷达 R' + r.id + '</h3>' +
+        const g = document.createElement('div'); g.className = 'entity-group radar-group';
+        g.innerHTML = '<h3>📡 雷达 R' + r.id + '<button class="del-btn" onclick="removeEntity(\'radar\',' + r.id + ')">✕</button></h3>' +
             makeSlider('x', r.id, 'X (m)', r.x, -10000, 20000, 100) +
             makeSlider('y', r.id, 'Y (m)', r.y, -10000, 20000, 100) +
             makeSlider('Pt_dBm', r.id, '功率(dBm)', r.Pt_dBm, 0, 80, 1) +
@@ -473,11 +515,10 @@ function buildControls(scene) {
         container.appendChild(g);
     }
     for (const j of (scene.jammers || [])) {
-        const g = document.createElement('div');
-        g.className = 'entity-group jammer-group';
+        const g = document.createElement('div'); g.className = 'entity-group jammer-group';
         const typeOpts = '<option value="NOISE_JAM"' + (j.jam_type === 'NOISE_JAM' ? ' selected' : '') + '>噪声压制</option>' +
             '<option value="RANGE_DECEPT"' + (j.jam_type === 'RANGE_DECEPT' ? ' selected' : '') + '>距离欺骗</option>';
-        g.innerHTML = '<h3>📻 干扰机 J' + j.id + '</h3>' +
+        g.innerHTML = '<h3>📻 干扰机 J' + j.id + '<button class="del-btn" onclick="removeEntity(\'jammer\',' + j.id + ')">✕</button></h3>' +
             makeSlider('x', 'j' + j.id, 'X (m)', j.x, -10000, 20000, 100) +
             makeSlider('y', 'j' + j.id, 'Y (m)', j.y, -10000, 20000, 100) +
             makeSlider('Pj_dBm', 'j' + j.id, '功率(dBm)', j.Pj_dBm, 0, 60, 1) +
@@ -489,64 +530,39 @@ function buildControls(scene) {
     }
 }
 
-/** 参数面板筛选切换 */
 function setParamFilter(mode) {
     currentParamFilter = mode;
-    // 更新按钮激活状态
-    document.querySelectorAll('.filter-btn').forEach(btn=>{
-        btn.classList.toggle('active', btn.dataset.filter === mode);
-    });
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active', b.dataset.filter===mode));
     applyParamFilter();
 }
 
 function applyParamFilter() {
-    const radarGroups = document.querySelectorAll('.radar-group');
-    const jammerGroups = document.querySelectorAll('.jammer-group');
-    switch(currentParamFilter){
-        case 'radar':
-            radarGroups.forEach(el=>el.style.display='block');
-            jammerGroups.forEach(el=>el.style.display='none');
-            break;
-        case 'jammer':
-            radarGroups.forEach(el=>el.style.display='none');
-            jammerGroups.forEach(el=>el.style.display='block');
-            break;
-        default: // all
-            radarGroups.forEach(el=>el.style.display='block');
-            jammerGroups.forEach(el=>el.style.display='block');
-            break;
-    }
+    const rg = document.querySelectorAll('.radar-group');
+    const jg = document.querySelectorAll('.jammer-group');
+    const showRadar = currentParamFilter !== 'jammer';
+    const showJam = currentParamFilter !== 'radar';
+    rg.forEach(e=>e.style.display = showRadar ? 'block' : 'none');
+    jg.forEach(e=>e.style.display = showJam ? 'block' : 'none');
 }
 
 function makeSlider(param, id, label, value, min, max, step, group) {
     const uid = param + '_' + id;
-    return '<div class="param-row">' +
-        '<label>' + label + '</label>' +
-        '<input type="range" id="slider_' + uid + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '" oninput="onSliderChange(\'' + uid + '\',\'' + (group || '') + '\')">' +
-        '<input type="number" id="num_' + uid + '" value="' + (group === 'freq' ? (value).toFixed(2) : value) + '" step="' + step + '" onchange="onNumChange(\'' + uid + '\',\'' + min + '\',\'' + max + '\',\'' + (group || '') + '\')">' +
+    return '<div class="param-row"><label>' + label + '</label>' +
+        '<input type="range" id="slider_' + uid + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '" oninput="onSliderChange(\'' + uid + '\',\'' + (group||'') + '\')">' +
+        '<input type="number" id="num_' + uid + '" value="' + (group==='freq'?value.toFixed(2):value) + '" step="' + step + '" onchange="onNumChange(\'' + uid + '\',\'' + min + '\',\'' + max + '\',\'' + (group||'') + '\')">' +
         '</div>';
 }
 
 function onSliderChange(uid, group) {
     const slider = document.getElementById('slider_' + uid);
     const num = document.getElementById('num_' + uid);
-    if (slider && num) {
-        const val = parseFloat(slider.value);
-        num.value = group === 'freq' ? val.toFixed(2) : val;
-        scheduleSceneUpdate();
-    }
+    if (slider && num) { const v = parseFloat(slider.value); num.value = group==='freq'?v.toFixed(2):v; scheduleSceneUpdate(); }
 }
 
 function onNumChange(uid, min, max, group) {
     const slider = document.getElementById('slider_' + uid);
     const num = document.getElementById('num_' + uid);
-    if (slider && num) {
-        let val = parseFloat(num.value) || 0;
-        val = Math.max(parseFloat(min), Math.min(parseFloat(max), val));
-        num.value = group === 'freq' ? val.toFixed(2) : val;
-        slider.value = val;
-        scheduleSceneUpdate();
-    }
+    if (slider && num) { let v=parseFloat(num.value)||0; v=Math.max(parseFloat(min),Math.min(parseFloat(max),v)); num.value=group==='freq'?v.toFixed(2):v; slider.value=v; scheduleSceneUpdate(); }
 }
 
 function onControlChange() { scheduleSceneUpdate(); }
@@ -554,36 +570,40 @@ function onControlChange() { scheduleSceneUpdate(); }
 let updateTimeout = null;
 function scheduleSceneUpdate() {
     if (updateTimeout) clearTimeout(updateTimeout);
-    updateTimeout = setTimeout(() => { updateSceneAndRedraw(); updateTimeout = null; }, 300);
+    updateTimeout = setTimeout(()=>{ updateSceneAndRedraw(); updateTimeout=null; }, 300);
 }
 
 function gatherControlValues(scene) {
     if (!scene) return;
-    for (const r of (scene.radars || [])) {
-        r.x = getNum('x_' + r.id); r.y = getNum('y_' + r.id);
-        r.Pt_dBm = getNum('Pt_dBm_' + r.id); r.G_dB = getNum('G_dB_' + r.id);
-        r.freq = getNum('freq_' + r.id) * 1e9; r.bandwidth = getNum('bandwidth_' + r.id) * 1e6;
-        r.sigma = getNum('sigma_' + r.id); r.thresh_db = getNum('thresh_db_' + r.id);
+    for (const r of (scene.radars||[])) {
+        r.x=getNum('x_'+r.id); r.y=getNum('y_'+r.id);
+        r.Pt_dBm=getNum('Pt_dBm_'+r.id); r.G_dB=getNum('G_dB_'+r.id);
+        r.freq=getNum('freq_'+r.id)*1e9; r.bandwidth=getNum('bandwidth_'+r.id)*1e6;
+        r.sigma=getNum('sigma_'+r.id); r.thresh_db=getNum('thresh_db_'+r.id);
     }
-    for (const j of (scene.jammers || [])) {
-        j.x = getNum('x_j' + j.id); j.y = getNum('y_j' + j.id);
-        j.Pj_dBm = getNum('Pj_dBm_j' + j.id); j.Gj_dB = getNum('Gj_dB_j' + j.id);
-        j.jam_freq = getNum('jam_freq_j' + j.id) * 1e9;
-        const sel = document.getElementById('jam_type_j' + j.id);
-        if (sel) j.jam_type = sel.value;
+    for (const j of (scene.jammers||[])) {
+        j.x=getNum('x_j'+j.id); j.y=getNum('y_j'+j.id);
+        j.Pj_dBm=getNum('Pj_dBm_j'+j.id); j.Gj_dB=getNum('Gj_dB_j'+j.id);
+        j.jam_freq=getNum('jam_freq_j'+j.id)*1e9;
+        const sel=document.getElementById('jam_type_j'+j.id); if(sel) j.jam_type=sel.value;
     }
 }
 
-function getNum(id) {
-    const el = document.getElementById('num_' + id);
-    return el ? parseFloat(el.value) || 0 : 0;
-}
+function getNum(id) { const el=document.getElementById('num_'+id); return el?parseFloat(el.value)||0:0; }
 
-window.addEventListener('load', async () => { await fetchScene(); });
-window.addEventListener('resize', () => {
+/* ====== Init ====== */
+window.addEventListener('load', async ()=>{
+    const canvas = document.getElementById('situation-canvas');
+    canvas.addEventListener('mousedown', onCanvasMouseDown);
+    canvas.addEventListener('mousemove', onCanvasMouseMove);
+    canvas.addEventListener('mouseup', onCanvasMouseUp);
+    canvas.addEventListener('mouseleave', onCanvasMouseLeave);
+    await fetchScene();
+});
+window.addEventListener('resize', ()=>{
     drawSituation();
-    drawChart('chart-canvas', 'sinr_dbs', 'SINR (dB)');
-    drawChart('freq-match-canvas', 'freq_zeta', '频域匹配系数 ζ');
+    drawChart('chart-canvas','sinr_dbs','SINR (dB)');
+    drawChart('freq-match-canvas','freq_zeta','频域匹配系数 ζ');
 });
 </script>
 </body>

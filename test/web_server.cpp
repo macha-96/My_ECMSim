@@ -286,7 +286,7 @@ int main(int argc, char *argv[]) {
     // app owns the routes now — do NOT manually free them
 
     /* Create TCP server */
-    my_tcp_server_t *server = makeMyTcpServer((char*)"0.0.0.0", 8080);
+    my_tcp_server_t *server = makeMyTcpServer((char*)"0.0.0.0", 8088);
     if (!server) {
         std::cerr << "makeMyTcpServer failed\n";
         deleteMyWebAppV1(app);  // frees routes internally
