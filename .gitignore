@@ -2,7 +2,11 @@ bin/
 build/
 lib/
 third_party/
+mykeys/
 .vscode
+.env
+.python-version
 
 .so
 .o
+

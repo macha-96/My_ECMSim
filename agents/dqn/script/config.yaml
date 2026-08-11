@@ -1,0 +1,22 @@
+# DQN全局超参
+device: "cuda"
+gamma: 0.95
+lr: 1e-4
+epsilon_start: 0.9
+epsilon_end: 0.01
+epsilon_decay: 5000
+target_update_step: 100
+buffer_capacity: 10000
+batch_size: 64
+max_train_episode: 5000
+
+# 仿真交互文件路径
+obs_json_path: "./tmp/obs.json"
+action_json_path: "./tmp/action.json"
+weight_save_path: "./weights/dqn_jammer.pth"
+
+# 状态/动作维度
+state_dim: 12
+action_dim: 21
+power_level_num: 7
+freq_shift_num: 3
