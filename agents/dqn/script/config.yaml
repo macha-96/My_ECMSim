@@ -1,22 +1,53 @@
-# DQN全局超参
-device: "cuda"
+# DQN 全局超参
+device: "cpu"
 gamma: 0.95
-lr: 1e-4
+lr: 0.0001
 epsilon_start: 0.9
 epsilon_end: 0.01
 epsilon_decay: 5000
 target_update_step: 100
 buffer_capacity: 10000
 batch_size: 64
-max_train_episode: 5000
+max_train_episode: 2000
 
-# 仿真交互文件路径
-obs_json_path: "./tmp/obs.json"
-action_json_path: "./tmp/action.json"
-weight_save_path: "./weights/dqn_jammer.pth"
+# gRPC 后端地址
+grpc_target: "localhost:50051"
+http_target: "http://localhost:8080"
+
+# 权重保存路径
+weight_save_dir: "./weights"
+
+# 场景配置
+scene_radars:
+  - id: 1
+    x: 0
+    y: 0
+    Pt_dBm: 20
+    G_dB: 25
+    freq: 10e9
+    bandwidth: 1e6
+    sigma: 5
+    thresh_db: -50
+
+scene_jammers:
+  - id: 1
+    x: 5000
+    y: 0
+    Pj_dBm: 0
+    Gj_dB: 10
+    jam_freq: 10e9
+    jam_type: "NOISE_JAM"
 
 # 状态/动作维度
-state_dim: 12
+state_dim: 8
 action_dim: 21
 power_level_num: 7
 freq_shift_num: 3
+
+# 奖励函数权重
+reward_weights:
+  detect_fail: 1.0
+  detect_success: -0.5
+  power_penalty: 0.01
+  freq_match_bonus: 0.3
+  default: 0.1

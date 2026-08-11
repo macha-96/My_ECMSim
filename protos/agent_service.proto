@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package ecmsim;
+
+service AgentService {
+  rpc GetState(StateRequest) returns (StateResponse);
+  rpc ExecuteAction(ActionRequest) returns (ActionResponse);
+  rpc StepSimulation(StepRequest) returns (StepResponse);
+}
+
+message StateRequest {
+  string session_id = 1;
+  int32 jammer_id = 2;
+}
+
+message StateResponse {
+  repeated double state = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message ActionRequest {
+  string session_id = 1;
+  int32 jammer_id = 2;
+  double power_dbm = 3;
+  double jam_freq = 4;
+}
+
+message ActionResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StepRequest {
+  string session_id = 1;
+}
+
+message RadarResultProto {
+  int32 radar_id = 1;
+  double sinr_db = 2;
+  bool detect_success = 3;
+  double jam_success_score = 4;
+  double total_effective_jam_power = 5;
+  double jsr_db = 6;
+  bool is_deception_active = 7;
+  double decept_effect_score = 8;
+  repeated double jam_freq_deltas = 9;
+  repeated double freq_match_factors = 10;
+}
+
+message StepResponse {
+  repeated RadarResultProto results = 1;
+  bool success = 2;
+  string error = 3;
+}

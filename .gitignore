@@ -6,6 +6,7 @@ mykeys/
 .vscode
 .env
 .python-version
+__pycache__
 
 .so
 .o

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ECMSim V3</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#eee;padding:16px}
+h1{text-align:center;color:#e94560;margin:0 0 16px;font-size:24px}
+.layout{display:flex;flex-wrap:wrap;gap:12px}
+.layout-row{display:flex;flex-wrap:wrap;gap:12px;width:100%}
+.layout-row>.panel{flex:1 1 calc(50% - 6px);min-width:420px}
+.panel{background:#16213e;border-radius:8px;padding:14px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.panel h2{color:#0f3460;font-size:15px;margin:0 0 8px;border-bottom:1px solid #0f3460;padding-bottom:5px}
+#s-canvas{width:100%;height:340px;background:#0d1b2a;border-radius:4px;display:block;cursor:pointer}
+#ctrl{overflow-y:auto;max-height:650px}
+.add-btn-row,.filt-row{display:flex;gap:6px;margin-bottom:10px}
+.filt-btn{padding:4px 12px;border:1px solid #333;background:#0d1b2a;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px}
+.filt-btn.on{background:#e94560;color:#fff;border-color:#e94560}
+.add-btn{padding:5px 14px;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600}
+.add-r{background:#2e7d32;color:#fff}.add-j{background:#c62828;color:#fff}
+.egrp{background:#1a1a40;border-radius:6px;padding:8px;margin:0 0 8px}
+.egrp h3{font-size:12px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.egrp h3 .del{margin-left:auto;background:none;border:none;color:#666;cursor:pointer;font-size:14px;padding:0}
+.egrp h3 .del:hover{color:#f44336}
+.pr{display:flex;align-items:center;gap:6px;margin:0 0 3px;font-size:11px}
+.pr label{flex:0 0 70px;color:#aaa}
+.pr input[type=range]{flex:1;height:3px;accent-color:#e94560}
+.pr input[type=number]{width:70px;padding:1px 3px;background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;font-size:10px}
+.pr select{background:#0d1b2a;border:1px solid #333;color:#eee;border-radius:3px;padding:1px;font-size:10px}
+#rt{width:100%;border-collapse:collapse;font-size:11px;margin:0 0 8px}
+#rt th{background:#0f3460;padding:4px 6px;text-align:left;font-weight:600;white-space:nowrap}
+#rt td{padding:3px 6px;border-bottom:1px solid #1a1a40;white-space:nowrap}
+.ok{color:#4caf50;font-weight:600}.fail{color:#f44336;font-weight:600}
+.cr{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.cb{flex:1;min-width:280px}
+.cb canvas{width:100%;height:160px;background:#0d1b2a;border-radius:4px;display:block}
+.br{display:flex;gap:10px;margin:8px 0;flex-wrap:wrap}
+.btn{padding:6px 20px;border:none;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600}
+.btn-run{background:#e94560;color:#fff}.btn-rst{background:#0f3460;color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.st{font-size:11px;color:#888;text-align:center;margin-top:6px}
+#jdt{width:100%;border-collapse:collapse;font-size:11px}
+#jdt th{background:#1a1a40;padding:3px 5px;text-align:left;font-weight:600;white-space:nowrap}
+#jdt td{padding:2px 5px;border-bottom:1px solid #1a1a40;white-space:nowrap}
+@media(max-width:960px){.layout-row>.panel{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<h1>⚡ ECMSim <span style="font-size:13px;color:#888">V3</span></h1>
+<div class="layout">
+<div class="layout-row">
+<div class="panel" id="sit"><h2>态势 <span style="font-size:11px;color:#666">拖拽移动</span></h2><canvas id="s-canvas"></canvas></div>
+<div class="panel" id="res">
+<h2>仿真结果</h2>
+<div class="br"><button class="btn btn-run" id="btn-r" onclick="sim()">▶ 运行</button><button class="btn btn-rst" onclick="rst()">↺ 重置</button></div>
+<div style="overflow-x:auto"><table id="rt"><thead><tr><th>ID</th><th>SINR</th><th>有效干扰</th><th>JSR</th><th>ζ</th><th>评分</th><th>检测</th><th>欺骗</th></tr></thead><tbody id="rb"></tbody></table></div>
+<div class="cr"><div class="cb"><canvas id="c1"></canvas></div><div class="cb"><canvas id="c2"></canvas></div></div>
+<div class="st" id="st">就绪</div>
+</div>
+</div>
+<div class="layout-row">
+<div class="panel" id="ctrl">
+<h2>参数 <span id="sl" style="font-size:11px;color:#666;font-weight:normal">-</span></h2>
+<div class="add-btn-row"><button class="add-btn add-r" onclick="aR()">＋雷达</button><button class="add-btn add-j" onclick="aJ()">＋干扰机</button></div>
+<div class="filt-row"><button class="filt-btn on" data-f="all" onclick="sF('all')">全部</button><button class="filt-btn" data-f="radar" onclick="sF('radar')">雷达</button><button class="filt-btn" data-f="jammer" onclick="sF('jammer')">干扰机</button></div>
+<div id="cc"></div>
+</div>
+<div class="panel" id="jd"><h2>频域匹配明细</h2><div style="overflow-x:auto"><table id="jdt"><thead><tr><th>雷达</th><th>干扰机</th><th>类型</th><th>频差MHz</th><th>ζ</th><th>空间功率</th><th>有效功率</th></tr></thead><tbody id="jdb"></tbody></table></div></div>
+</div>
+</div>
+<script>
+let sid=null, sc=null, hist=[], maxH=30, filt='all', drag=null;
+let ci={xM:0,xX:10000,yM:0,yX:10000,mg:50,sc:1,h:340};
+
+async function POST(u,b){return(await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();}
+
+window.onload=async()=>{
+  const r=await POST('/api/scene',{});
+  if(!r.success)return;
+  sid=r.session_id; document.getElementById('sl').textContent=sid;
+  await fSc();
+  const cvs=document.getElementById('s-canvas');
+  cvs.addEventListener('mousedown',onMD); cvs.addEventListener('mousemove',onMM);
+  cvs.addEventListener('mouseup',onMU); cvs.addEventListener('mouseleave',onMU);
+};
+
+async function fSc(){
+  if(!sid)return;
+  const r=await POST('/api/scene',{action:'config',session_id:sid});
+  if(!r.success)return;
+  sc={radars:r.radars||[],jammers:r.jammers||[]};
+  bC(); dS();
+}
+
+async function aR(){
+  if(!sid||!sc)return;
+  const ids=sc.radars.map(r=>r.id), nid=ids.length?Math.max(...ids)+1:1;
+  const rad={id:nid,x:5000,y:5000,Pt_dBm:20,G_dB:25,freq:1e10,bandwidth:1e6,sigma:5,thresh_db:-50};
+  const r=await POST('/api/radars',{session_id:sid,radar:rad});
+  if(r.success){sc.radars.push(rad);reb();}
+}
+async function aJ(){
+  if(!sid||!sc)return;
+  const ids=sc.jammers.map(j=>j.id), nid=ids.length?Math.max(...ids)+1:1;
+  const jam={id:nid,x:6000,y:6000,Pj_dBm:40,Gj_dB:20,jam_freq:1e10,jam_type:'NOISE_JAM'};
+  const r=await POST('/api/jammers',{session_id:sid,jammer:jam});
+  if(r.success){sc.jammers.push(jam);reb();}
+}
+async function rm(t,id){
+  if(!sid)return;
+  if(t==='radar'){await POST('/api/radar',{action:'del',session_id:sid,radar_id:id});sc.radars=sc.radars.filter(r=>r.id!==id);}
+  else{await POST('/api/jammer',{action:'del',session_id:sid,jammer_id:id});sc.jammers=sc.jammers.filter(j=>j.id!==id);}
+  reb();
+}
+async function reb(){hist=[];document.getElementById('rb').innerHTML='';document.getElementById('jdb').innerHTML='';bC();dS();dC('c1','si','SINR');dC('c2','ze','ζ');st('已更新');}
+
+function bC(){
+  const c=document.getElementById('cc');c.innerHTML='';
+  if(!sc)return;
+  for(const r of sc.radars||[]){
+    const g=document.createElement('div');g.className='egrp radar-group';
+    g.innerHTML='<h3>📡 R'+r.id+' <button class=\"del\" onclick=\"rm(\'radar\','+r.id+')\">✕</button></h3>'+
+      ms('x',r.id,'X',r.x,-10000,20000,100)+ms('y',r.id,'Y',r.y,-10000,20000,100)+
+      ms('Pt_dBm',r.id,'Pwr',r.Pt_dBm,0,80,1)+ms('G_dB',r.id,'Gain',r.G_dB,0,50,0.5)+
+      ms('freq',r.id,'Freq',r.freq/1e9,1,20,0.1,'f')+ms('bandwidth',r.id,'BW',r.bandwidth/1e6,0.1,10,0.1,'b')+
+      ms('sigma',r.id,'RCS',r.sigma,0.1,20,0.5)+ms('thresh_db',r.id,'Thr',r.thresh_db,-80,0,1);
+    c.appendChild(g);
+  }
+  for(const j of sc.jammers||[]){
+    const g=document.createElement('div');g.className='egrp jammer-group';
+    const op='<option value=\"NOISE_JAM\"'+(j.jam_type==='NOISE_JAM'?' selected':'')+'>压制</option><option value=\"RANGE_DECEPT\"'+(j.jam_type==='RANGE_DECEPT'?' selected':'')+'>欺骗</option>';
+    g.innerHTML='<h3>📻 J'+j.id+' <button class=\"del\" onclick=\"rm(\'jammer\','+j.id+')\">✕</button></h3>'+
+      ms('x','j'+j.id,'X',j.x,-10000,20000,100)+ms('y','j'+j.id,'Y',j.y,-10000,20000,100)+
+      ms('Pj_dBm','j'+j.id,'Pwr',j.Pj_dBm,0,60,1)+ms('Gj_dB','j'+j.id,'Gain',j.Gj_dB,0,40,0.5)+
+      ms('jam_freq','j'+j.id,'Freq',j.jam_freq/1e9,1,20,0.1,'f')+
+      '<div class=\"pr\"><label>Type</label><select id=\"jt'+j.id+'\" onchange=\"sch()\">'+op+'</select></div>';
+    c.appendChild(g);
+  }
+  aF();
+}
+function ms(p,id,l,v,mi,ma,st,g){
+  const u=p+'_'+id;
+  return '<div class=\"pr\"><label>'+l+'</label><input type=\"range\" id=\"sl_'+u+'\" min=\"'+mi+'\" max=\"'+ma+'\" step=\"'+st+'\" value=\"'+v+'\" oninput=\"onSI(\''+u+'\',\''+(g||'')+'\')\"><input type=\"number\" id=\"nu_'+u+'\" value=\"'+(g==='f'?v.toFixed(2):v)+'\" step=\"'+st+'\" onchange=\"onNU(\''+u+'\',\''+mi+'\',\''+ma+'\',\''+(g||'')+'\')\"></div>';
+}
+function onSI(u,g){const s=document.getElementById('sl_'+u),n=document.getElementById('nu_'+u);if(s&&n){const v=parseFloat(s.value);n.value=g==='f'?v.toFixed(2):v;sch();}}
+function onNU(u,mi,ma,g){const s=document.getElementById('sl_'+u),n=document.getElementById('nu_'+u);if(s&&n){let v=parseFloat(n.value)||0;v=Math.max(parseFloat(mi),Math.min(parseFloat(ma),v));n.value=g==='f'?v.toFixed(2):v;s.value=v;sch();}}
+let sT=null;function sch(){if(sT)clearTimeout(sT);sT=setTimeout(()=>{sync();sT=null;},300);}
+async function sync(){
+  if(!sid||!sc)return;
+  for(const r of sc.radars||[]){
+    r.x=gn('x_'+r.id);r.y=gn('y_'+r.id);r.Pt_dBm=gn('Pt_dBm_'+r.id);r.G_dB=gn('G_dB_'+r.id);
+    r.freq=gn('freq_'+r.id)*1e9;r.bandwidth=gn('bandwidth_'+r.id)*1e6;r.sigma=gn('sigma_'+r.id);r.thresh_db=gn('thresh_db_'+r.id);
+    await POST('/api/radar',{action:'update',session_id:sid,radar:r});
+  }
+  for(const j of sc.jammers||[]){
+    j.x=gn('x_j'+j.id);j.y=gn('y_j'+j.id);j.Pj_dBm=gn('Pj_dBm_j'+j.id);j.Gj_dB=gn('Gj_dB_j'+j.id);
+    j.jam_freq=gn('jam_freq_j'+j.id)*1e9;const s=document.getElementById('jt'+j.id);if(s)j.jam_type=s.value;
+    await POST('/api/jammer',{action:'update',session_id:sid,jammer:j});
+  }
+  dS();
+}
+function gn(id){const e=document.getElementById('nu_'+id);return e?parseFloat(e.value)||0:0;}
+function sF(m){filt=m;document.querySelectorAll('.filt-btn').forEach(b=>b.classList.toggle('on',b.dataset.f===m));aF();}
+function aF(){document.querySelectorAll('.radar-group').forEach(e=>e.style.display=(filt!=='jammer')?'block':'none');document.querySelectorAll('.jammer-group').forEach(e=>e.style.display=(filt!=='radar')?'block':'none');}
+
+async function sim(){
+  if(!sid)return;document.getElementById('btn-r').disabled=true;st('仿真中...');
+  await sync();
+  const r=await POST('/api/simulate',{session_id:sid});
+  if(!r.success){st('失败');document.getElementById('btn-r').disabled=false;return;}
+  const res=r.sim_results||[];
+  const tb=document.getElementById('rb');tb.innerHTML='';
+  for(const x of res){
+    const tr=document.createElement('tr');
+    const sc=x.jam_success_score!==undefined?x.jam_success_score.toFixed(3):'—';
+    const js=isFinite(x.jsr_dB)?x.jsr_dB.toFixed(1):'—';
+    const az=x.jammer_details&&x.jammer_details.length?x.jammer_details.reduce((s,j)=>s+(j.freq_match_factor||0),0)/x.jammer_details.length:0;
+    const ds=x.is_deception_active?'✅ ζ='+(x.decept_effect_score||0).toFixed(2):'—';
+    tr.innerHTML='<td>R'+x.radar_id+'</td><td>'+x.SINR_dB.toFixed(1)+'</td><td>'+(x.total_effective_jam_power_W!==undefined?x.total_effective_jam_power_W.toExponential(2):'—')+'</td><td>'+js+'</td><td>'+az.toFixed(3)+'</td><td>'+sc+'</td><td class=\"'+(x.detect_success?'ok':'fail')+'\">'+(x.detect_success?'✅':'❌')+'</td><td>'+ds+'</td>';
+    tb.appendChild(tr);
+  }
+  const jb=document.getElementById('jdb');jb.innerHTML='';
+  for(const x of res){
+    if(!x.jammer_details)continue;
+    for(const jd of x.jammer_details){
+      const tr=document.createElement('tr');
+      const j=sc.jammers.find(ja=>ja.id===jd.jammer_id)||{};
+      tr.innerHTML='<td>R'+x.radar_id+'</td><td>J'+jd.jammer_id+'</td><td>'+(j.jam_type==='NOISE_JAM'?'压制':(j.jam_type==='RANGE_DECEPT'?'欺骗':'?'))+'</td><td>'+(jd.freq_delta_Hz/1e6).toFixed(1)+'</td><td>'+(jd.freq_match_factor||0).toFixed(4)+'</td><td>'+(jd.original_power_W||0).toExponential(2)+'</td><td>'+(jd.effective_power_W||0).toExponential(2)+'</td>';
+      jb.appendChild(tr);
+    }
+  }
+  const stp={labels:res.map(r=>r.radar_id),si:res.map(r=>r.SINR_dB),ze:res.map(r=>{if(!r.jammer_details||!r.jammer_details.length)return 0;return r.jammer_details.reduce((s,j)=>s+(j.freq_match_factor||0),0)/r.jammer_details.length;})};
+  hist.push(stp);if(hist.length>maxH)hist.shift();
+  dC('c1','si','SINR');dC('c2','ze','ζ');
+  st('步骤 '+hist.length);document.getElementById('btn-r').disabled=false;
+}
+
+async function rst(){
+  if(!sid)return;hist=[];
+  await POST('/api/scene',{action:'delete',session_id:sid});
+  const r=await POST('/api/scene',{});
+  if(!r.success)return;sid=r.session_id;
+  document.getElementById('sl').textContent=sid;sc={radars:[],jammers:[]};reb();st('已重置');
+}
+function st(m){document.getElementById('st').textContent=m;}
+
+function rc(cvs){
+  const r=cvs.getBoundingClientRect();if(r.width<=0||r.height<=0)return{w:0,h:0,ctx:null};
+  const d=window.devicePixelRatio||1;cvs.width=r.width*d;cvs.height=r.height*d;
+  cvs.style.width=r.width+'px';cvs.style.height=r.height+'px';
+  const ctx=cvs.getContext('2d');ctx.scale(d,d);return{w:r.width,h:r.height,ctx};
+}
+function tC(x,y){const c=ci;return{cx:c.mg+(x-c.xM)*c.sc,cy:c.h-20-(y-c.yM)*c.sc};}
+function tS(cx,cy){const c=ci;return{x:(cx-c.mg)/c.sc+c.xM,y:(c.h-20-cy)/c.sc+c.yM};}
+
+function dS(){
+  const cvs=document.getElementById('s-canvas');const{w,h,ctx}=rc(cvs);if(!ctx||w<10)return;
+  ctx.clearRect(0,0,w,h);let xs=[],ys=[];
+  if(sc){for(const r of sc.radars||[]){xs.push(r.x);ys.push(r.y);}for(const j of sc.jammers||[]){xs.push(j.x);ys.push(j.y);}}
+  let xM=0,xX=10000,yM=0,yX=10000;if(xs.length>0){xM=Math.min(...xs);xX=Math.max(...xs);yM=Math.min(...ys);yX=Math.max(...ys);}
+  const pd=0.15;let xR=xX-xM||1,yR=yX-yM||1;xM-=xR*pd;xX+=xR*pd;yM-=yR*pd;yX+=yR*pd;
+  yM=Math.min(0,yM);xM=Math.min(0,xM);const mg=50,pw=w-mg-20,ph=h-mg-20;
+  const sc2=Math.min(pw/(xX-xM||1),ph/(yX-yM||1));
+  ci={xM,xX,yM,yX,mg,sc:sc2,h};
+  ctx.strokeStyle='#1a2a4a';ctx.lineWidth=0.5;ctx.font='10px sans-serif';ctx.fillStyle='#556';
+  for(let i=0;i<=5;i++){const x=xM+(xX-xM)*i/5,p=tC(x,yM);ctx.beginPath();ctx.moveTo(p.cx,h-20);ctx.lineTo(p.cx,20);ctx.stroke();ctx.fillText(fN(x),p.cx-15,h-6);}
+  for(let i=0;i<=5;i++){const y=yM+(yX-yM)*i/5,p=tC(xM,y);ctx.beginPath();ctx.moveTo(mg,p.cy);ctx.lineTo(mg+pw,p.cy);ctx.stroke();ctx.fillText(fN(y),2,p.cy+3);}
+  ctx.fillStyle='#888';ctx.font='11px sans-serif';ctx.fillText('X (m)',mg+pw/2-12,h-2);
+  ctx.save();ctx.translate(10,h/2+20);ctx.rotate(-Math.PI/2);ctx.fillText('Y (m)',-15,0);ctx.restore();
+  if(!sc)return;
+  ctx.strokeStyle='rgba(233,69,96,0.15)';ctx.lineWidth=1;
+  for(const r of sc.radars||[])for(const j of sc.jammers||[]){const p1=tC(r.x,r.y),p2=tC(j.x,j.y);ctx.beginPath();ctx.moveTo(p1.cx,p1.cy);ctx.lineTo(p2.cx,p2.cy);ctx.stroke();}
+  for(const r of sc.radars||[]){const p=tC(r.x,r.y);const id=drag&&drag.t==='radar'&&drag.id===r.id;ctx.beginPath();ctx.arc(p.cx,p.cy,14,0,2*Math.PI);ctx.fillStyle=id?'#66bb6a':'#4caf50';ctx.fill();ctx.strokeStyle=id?'#ffeb3b':'#fff';ctx.lineWidth=id?3:2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('R'+r.id,p.cx,p.cy+26);}
+  for(const j of sc.jammers||[]){const p=tC(j.x,j.y);const id=drag&&drag.t==='jammer'&&drag.id===j.id;const s=11;ctx.beginPath();ctx.moveTo(p.cx-s,p.cy-s);ctx.lineTo(p.cx+s,p.cy+s);ctx.moveTo(p.cx+s,p.cy-s);ctx.lineTo(p.cx-s,p.cy+s);ctx.strokeStyle=id?'#ffeb3b':'#e94560';ctx.lineWidth=id?3:2;ctx.stroke();ctx.fillStyle='#e94560';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('J'+j.id+(j.jam_type==='RANGE_DECEPT'?'✧':''),p.cx,p.cy+26);}
+}
+function fN(n){return Math.abs(n)>=10000?(n/1000).toFixed(0)+'k':n.toFixed(0);}
+function gP(e){const r=document.getElementById('s-canvas').getBoundingClientRect();return{cx:e.clientX-r.left,cy:e.clientY-r.top};}
+function hT(cx,cy){if(!sc)return null;const r2=324;for(const r of sc.radars||[]){const p=tC(r.x,r.y),dx=cx-p.cx,dy=cy-p.cy;if(dx*dx+dy*dy<=r2)return{t:'radar',id:r.id};}for(const j of sc.jammers||[]){const p=tC(j.x,j.y),dx=cx-p.cx,dy=cy-p.cy;if(dx*dx+dy*dy<=r2)return{t:'jammer',id:j.id};}return null;}
+function onMD(e){const p=gP(e),h=hT(p.cx,p.cy);if(!h)return;drag=h;const p2=tS(p.cx,p.cy);const en=h.t==='radar'?sc.radars.find(r=>r.id===h.id):sc.jammers.find(j=>j.id===h.id);if(!en){drag=null;return;}e.preventDefault();}
+function onMM(e){if(!drag||!sc)return;const p=gP(e),p2=tS(p.cx,p.cy);const en=drag.t==='radar'?sc.radars.find(r=>r.id===drag.id):sc.jammers.find(j=>j.id===drag.id);if(!en)return;en.x=Math.round(p2.x);en.y=Math.round(p2.y);const pf=drag.t==='radar'?'':'j';const xn=document.getElementById('nu_x_'+pf+drag.id),yn=document.getElementById('nu_y_'+pf+drag.id);if(xn){xn.value=en.x;const xs=document.getElementById('sl_x_'+pf+drag.id);if(xs)xs.value=en.x;}if(yn){yn.value=en.y;const ys=document.getElementById('sl_y_'+pf+drag.id);if(ys)ys.value=en.y;}dS();e.preventDefault();}
+function onMU(e){if(!drag)return;drag=null;dS();sch();e.preventDefault();}
+
+function dC(cid,dk,lb){
+  const cvs=document.getElementById(cid);const{w,h,ctx}=rc(cvs);if(!ctx||w<10||hist.length===0)return;
+  const mg={top:18,right:15,bottom:30,left:50},pw=w-mg.left-mg.right,ph=h-mg.top-mg.bottom;
+  ctx.clearRect(0,0,w,h);
+  const ids=[...new Set(hist.flatMap(s=>s.labels))].sort();
+  const pl=['#e94560','#4caf50','#2196f3','#ff9800','#9c27b0','#00bcd4'],cl={};ids.forEach((id,i)=>cl[id]=pl[i%pl.length]);
+  let mn=Infinity,mx=-Infinity;for(const s of hist)for(const v of(s[dk]||[])){if(v<mn)mn=v;if(v>mx)mx=v;}if(!isFinite(mn))return;
+  const rng=mx-mn||10,yM=mn-rng*0.15,yX=mx+rng*0.15,n=hist.length;
+  ctx.strokeStyle='#1a2a4a';ctx.lineWidth=0.5;
+  for(let i=0;i<=4;i++){const y=yM+(yX-yM)*i/4,cy=mg.top+ph-(y-yM)/(yX-yM)*ph;ctx.beginPath();ctx.moveTo(mg.left,cy);ctx.lineTo(mg.left+pw,cy);ctx.stroke();ctx.fillStyle='#556';ctx.font='9px sans-serif';ctx.textAlign='right';ctx.fillText(y.toFixed(1),mg.left-4,cy+3);}
+  ctx.fillStyle='#666';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('步骤',mg.left+pw/2,h-3);
+  ctx.save();ctx.translate(12,mg.top+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText(lb,0,0);ctx.restore();
+  for(const id of ids){
+    ctx.strokeStyle=cl[id];ctx.lineWidth=2;ctx.beginPath();const pts=[];
+    for(let i=0;i<n;i++){const idx=hist[i].labels.indexOf(id),v=idx>=0&&hist[i][dk]?hist[i][dk][idx]:NaN;const cx=mg.left+(i/Math.max(n-1,1))*pw,cy=mg.top+ph-(v-yM)/(yX-yM)*ph;pts.push({cx,cy,v:!isNaN(v)});}
+    let dr=false;for(const pt of pts){if(pt.v){if(!dr){ctx.beginPath();ctx.moveTo(pt.cx,pt.cy);dr=true;}else ctx.lineTo(pt.cx,pt.cy);}else dr=false;}ctx.stroke();
+    const la=pts.filter(p=>p.v);if(la.length>0){const l=la[la.length-1];ctx.fillStyle=cl[id];ctx.font='10px sans-serif';ctx.textAlign='left';ctx.fillText('R'+id,l.cx+4,l.cy+3);}
+  }
+}
+</script>
+</body>
+</html>
