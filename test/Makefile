@@ -56,7 +56,7 @@ web-run: web
 
 # ========== gRPC Proto Generation ==========
 GRPC_INSTALL := $(ROOT)/third_party/grpc/install
-GRPC_GEN_DIR := $(ROOT)/include/grpc_gen
+GRPC_GEN_DIR := $(ROOT)/build/grpc_gen
 PROTOS_DIR   := $(ROOT)/protos
 PROTOC       := $(GRPC_INSTALL)/bin/protoc
 GRPC_CPP_PLUGIN := $(GRPC_INSTALL)/bin/grpc_cpp_plugin

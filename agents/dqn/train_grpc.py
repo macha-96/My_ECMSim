@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from protos.client import ECMSimClient
+from client import ECMSimClient
 # from protos import agent_service_pb2
 from train.trainer import DQNTrainer
 

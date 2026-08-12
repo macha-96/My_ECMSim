@@ -7,7 +7,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from protos.client import ECMSimClient
+from client import ECMSimClient
 from core.dqn_agent import DQNJammerAgent
 from utils.common import mkdir_if_not_exist
 
