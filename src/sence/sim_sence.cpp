@@ -39,7 +39,7 @@ std::vector<RadarSimResult> SimScene::runOneStep() {
             auto [jx, jy] = jam.getPos();
             double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
             double freq_j = jam.getJamFreq();
-            double delta_f = std::abs(freq_j - freq_r);
+            double delta_f = freq_j - freq_r;
 
             // 空间到达功率（原有公式不变）
             double Pj_space = ECMAlgo::jammerReceivePower(

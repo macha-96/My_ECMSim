@@ -1,7 +1,7 @@
 # DQN global hyperparameters
 device: "cpu"
 gamma: 0.95
-lr: 0.005
+lr: 0.001                    # lowered from 0.005
 epsilon_start: 1.0
 epsilon_end: 0.01
 epsilon_decay: 20000
@@ -40,19 +40,21 @@ scene_jammers:
 
 # State / action dimensions
 state_dim: 8
-action_dim: 21
+action_dim: 35               # 7 power × 5 freq shifts (was 21)
 power_level_num: 7
-freq_shift_num: 3
+freq_shift_num: 5            # wider range so some actions miss the band
+
+# Frequency shift multiplier: shift = (f_idx - 2) * (bw * 2.5)
+# Only center (f_idx=2) hits the band; others miss → ζ varies
+freq_shift_mult: 2.5
 
 # ===== Multi-dimensional continuous reward (from optimize.md) =====
-# Sigmoid: Pd = 1/(1+exp(-alpha*(SINR_dB - gamma)))
-# gamma approximates the radar detection threshold
 sigmoid_alpha: 0.5
 sigmoid_gamma: -50.0
 
 # Reward weights: R = wd*(1-Pd) + wf*avg_zeta - wp*(P_dBm/60)
 reward_weights:
-  wd: 1.0     # detection probability weight
-  wf: 0.3     # frequency match weight  
-  wp: 0.01    # power penalty weight
+  wd: 1.0
+  wf: 0.5                    # boosted from 0.3
+  wp: 0.1                    # boosted from 0.01 — power now distinguishable
   default: 0.1

@@ -1,0 +1,63 @@
+(ECMSim) ky@LAPTOP-N33LP7RC:~/workspace/ECMSim/agents/dqn$ python3 script/train_agent.py --session-id session_1 --radar-id 1 --jammer-id 1 --episodes 1000
+[INFO] http=http://localhost:8080 grpc=localhost:50051
+[INFO] radar_id=1 jammer_id=1 episodes=1000
+[INFO] backend ready
+[INFO] using existing session: session_1
+[TRAIN] radar_id=1 jammer_id=1 episodes=1000
+[TRAIN] Ep    1/1000 | Reward: -0.245 | Eps: 0.998 | Buf: 50 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep   20/1000 | Reward: -0.224 | Eps: 0.950 | Buf: 1000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep   40/1000 | Reward: -0.185 | Eps: 0.900 | Buf: 2000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep   60/1000 | Reward: -0.219 | Eps: 0.850 | Buf: 3000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep   80/1000 | Reward: -0.165 | Eps: 0.800 | Buf: 4000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  100/1000 | Reward: -0.190 | Eps: 0.750 | Buf: 5000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  120/1000 | Reward: -0.194 | Eps: 0.700 | Buf: 6000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  140/1000 | Reward: -0.154 | Eps: 0.650 | Buf: 7000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  160/1000 | Reward: -0.129 | Eps: 0.600 | Buf: 8000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  180/1000 | Reward: -0.162 | Eps: 0.550 | Buf: 9000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  200/1000 | Reward: -0.144 | Eps: 0.500 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[SAVE] ./weights/dqn_jammer_ep200.pth
+[TRAIN] Ep  220/1000 | Reward: -0.084 | Eps: 0.450 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  240/1000 | Reward: -0.104 | Eps: 0.400 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  260/1000 | Reward: -0.092 | Eps: 0.350 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  280/1000 | Reward: -0.037 | Eps: 0.300 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  300/1000 | Reward: -0.084 | Eps: 0.250 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  320/1000 | Reward: -0.037 | Eps: 0.200 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  340/1000 | Reward: -0.042 | Eps: 0.150 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  360/1000 | Reward: -0.027 | Eps: 0.100 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  380/1000 | Reward: -0.024 | Eps: 0.050 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  400/1000 | Reward: +0.006 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[SAVE] ./weights/dqn_jammer_ep400.pth
+[TRAIN] Ep  420/1000 | Reward: +0.008 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  440/1000 | Reward: -0.002 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  460/1000 | Reward: -0.030 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  480/1000 | Reward: -0.117 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  500/1000 | Reward: -0.099 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  520/1000 | Reward: -0.089 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  540/1000 | Reward: -0.002 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  560/1000 | Reward: -0.092 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  580/1000 | Reward: +0.003 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  600/1000 | Reward: +0.008 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[SAVE] ./weights/dqn_jammer_ep600.pth
+[TRAIN] Ep  620/1000 | Reward: -0.134 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  640/1000 | Reward: +0.008 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  660/1000 | Reward: -0.005 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  680/1000 | Reward: -0.130 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  700/1000 | Reward: -0.035 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  720/1000 | Reward: -0.039 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  740/1000 | Reward: -0.102 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  760/1000 | Reward: +0.001 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  780/1000 | Reward: +0.001 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  800/1000 | Reward: -0.047 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[SAVE] ./weights/dqn_jammer_ep800.pth
+[TRAIN] Ep  820/1000 | Reward: -0.125 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  840/1000 | Reward: -0.000 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  860/1000 | Reward: +0.008 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  880/1000 | Reward: +0.005 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  900/1000 | Reward: -0.000 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.961
+[TRAIN] Ep  920/1000 | Reward: -0.122 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  940/1000 | Reward: -0.184 | Eps: 0.010 | Buf: 10000 | Loss: 0.0000 | ζ: 0.960
+[TRAIN] Ep  960/1000 | Reward: +64.673 | Eps: 0.010 | Buf: 10000 | Loss: 0.7454 | ζ: 1.000
+[TRAIN] Ep  980/1000 | Reward: +64.667 | Eps: 0.010 | Buf: 10000 | Loss: 1.1013 | ζ: 1.000
+^C
+[INFO] training interrupted
+^C

@@ -18,7 +18,10 @@ class ECMSimClient:
         )
         rep = self.stub.GetState(req)
         if not rep.success:
-            raise RuntimeError(rep.error)
+            raise RuntimeError(
+                f"GetState failed: {rep.error} "
+                f"(session={self.session_id}, jammer={jammer_id})"
+            )
         return list(rep.state)
 
     def execute_action(self, jammer_id: int, power_dbm: float, jam_freq: float):
@@ -30,13 +33,19 @@ class ECMSimClient:
         )
         rep = self.stub.ExecuteAction(req)
         if not rep.success:
-            raise RuntimeError(rep.error)
+            raise RuntimeError(
+                f"ExecuteAction failed: {rep.error} "
+                f"(session={self.session_id}, jammer={jammer_id})"
+            )
 
     def step_simulation(self):
         req = agent_service_pb2.StepRequest(session_id=self.session_id)
         rep = self.stub.StepSimulation(req)
         if not rep.success:
-            raise RuntimeError(rep.error)
+            raise RuntimeError(
+                f"StepSimulation failed: {rep.error} "
+                f"(session={self.session_id})"
+            )
         return rep.results
 
     def close(self):

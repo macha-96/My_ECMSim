@@ -68,7 +68,6 @@ extern "C" void* hIndex(service_element_t*, http_request_context_t* ctx) {
 }
 
 extern "C" void* hScene(service_element_t*, http_request_context_t* ctx) {
-    LOG_INFO("%s /api/scene", ctx->method==POST?"POST":ctx->method==GET?"GET":"DELETE");
     auto body = parseBody(ctx); std::string sid, action; std::string resp;
     if (ctx->method == POST) {
         action = body.get("action", "").asString();
@@ -100,6 +99,8 @@ extern "C" void* hScene(service_element_t*, http_request_context_t* ctx) {
         if (sid.empty()) { resp=jsonErr("need session_id"); goto send; }
         resp = g_scene_mgr.deleteSession(sid) ? jsonOk() : jsonErr("session not found");
     } else resp=jsonErr("use POST/GET/DELETE");
+    LOG_INFO("%s /api/scene ,\tsession_id: %s", \
+        ctx->method == POST ? "POST" : ctx->method == GET ? "GET" : "DELETE", sid.c_str());
 send: return allocResp(resp, ctx);
 }
 
@@ -197,10 +198,23 @@ send: return allocResp(resp, ctx);
 }
 
 extern "C" void* hJammer(service_element_t*, http_request_context_t* ctx) {
-    auto body = parseBody(ctx); std::string sid=body["session_id"].asString(); std::string action, resp;
-    LOG_INFO("%s /api/jammer", ctx->method==GET?"GET":ctx->method==PUT?"PUT":ctx->method==DELETE?"DELETE":"POST");
-    if (sid.empty()) { resp=jsonErr("need session_id"); goto send; }
-    if (!g_scene_mgr.hasSession(sid)) { resp=jsonErr("session not found"); goto send; }
+    auto body = parseBody(ctx); 
+    std::string sid = body["session_id"].asString(); 
+    std::string action, resp;
+    
+    LOG_INFO("%s /api/jammer", ctx->method == GET ? "GET" : \
+            ctx->method == PUT ? "PUT" : \
+            ctx->method == DELETE ? "DELETE" : "POST");
+
+    if (sid.empty()) { 
+        resp=jsonErr("need session_id"); 
+        goto send; 
+    }
+
+    if (!g_scene_mgr.hasSession(sid)) { 
+        resp=jsonErr("session not found"); 
+        goto send; 
+    }
 
     if (ctx->method == POST) {
         action = body.get("action", "").asString();
@@ -290,63 +304,100 @@ extern "C" void* hDqnAction(service_element_t*, http_request_context_t* ctx) {
 /* ====== gRPC ====== */
 class AgentSvc final : public ecmsim::AgentService::Service {
     grpc::Status GetState(grpc::ServerContext*, const ecmsim::StateRequest* rq, ecmsim::StateResponse* rp) override {
-        auto s=g_scene_mgr.getStateForJammer(rq->session_id(), rq->jammer_id());
-        if(s.empty()){rp->set_success(false);rp->set_error("not found");return grpc::Status::OK;}
-        for(double v:s)rp->add_state(v); rp->set_success(true); return grpc::Status::OK;
+        auto s = g_scene_mgr.getStateForJammer(rq->session_id(), rq->jammer_id());
+        if(s.empty()) {
+            rp->set_success(false);
+            rp->set_error("not found");
+            return grpc::Status::OK;
+        }
+        for(double v : s) rp->add_state(v); 
+        rp->set_success(true); 
+        return grpc::Status::OK;
     }
     grpc::Status ExecuteAction(grpc::ServerContext*, const ecmsim::ActionRequest* rq, ecmsim::ActionResponse* rp) override {
-        bool ok=g_scene_mgr.executeJammerAction(rq->session_id(), rq->jammer_id(), rq->power_dbm(), rq->jam_freq());
-        rp->set_success(ok); if(!ok)rp->set_error("not found"); return grpc::Status::OK;
+        bool ok = g_scene_mgr.executeJammerAction(rq->session_id(), rq->jammer_id(), rq->power_dbm(), rq->jam_freq());
+        rp->set_success(ok); 
+        if(!ok)rp->set_error("not found"); 
+        return grpc::Status::OK;
     }
     grpc::Status StepSimulation(grpc::ServerContext*, const ecmsim::StepRequest* rq, ecmsim::StepResponse* rp) override {
-        auto rs=g_scene_mgr.runSimulation(rq->session_id());
-        if(rs.empty()){rp->set_success(false);rp->set_error("no radars");return grpc::Status::OK;}
-        for(const auto& r:rs){
-            auto* p=rp->add_results(); p->set_radar_id(r.radar_id); p->set_sinr_db(r.sinr_db);
-            p->set_detect_success(r.detect_ok); p->set_jam_success_score(r.jam_success_score);
-            p->set_total_effective_jam_power(r.total_effective_jam_power); p->set_jsr_db(r.jsr_db);
-            p->set_is_deception_active(r.is_deception_active); p->set_decept_effect_score(r.decept_effect_score);
-            for(double d:r.jam_freq_deltas)p->add_jam_freq_deltas(d);
-            for(double z:r.freq_match_factors)p->add_freq_match_factors(z);
+        auto rs = g_scene_mgr.runSimulation(rq->session_id());
+        if(rs.empty()) {
+            rp->set_success(false);
+            rp->set_error("no radars");
+            return grpc::Status::OK;
         }
-        rp->set_success(true); return grpc::Status::OK;
+        for(const auto& r : rs) {
+            auto* p = rp->add_results(); 
+            p->set_radar_id(r.radar_id); 
+            p->set_sinr_db(r.sinr_db);
+            p->set_detect_success(r.detect_ok); 
+            p->set_jam_success_score(r.jam_success_score);
+            p->set_total_effective_jam_power(r.total_effective_jam_power); 
+            p->set_jsr_db(r.jsr_db);
+            p->set_is_deception_active(r.is_deception_active); 
+            p->set_decept_effect_score(r.decept_effect_score);
+            for(double d : r.jam_freq_deltas) p->add_jam_freq_deltas(d);
+            for(double z : r.freq_match_factors) p->add_freq_match_factors(z);
+        }
+        rp->set_success(true); 
+        return grpc::Status::OK;
     }
 };
 
 /* ====== Main ====== */
 static bool loadFile(const std::string& p, std::string& out) {
-    std::ifstream f(p); if(!f.is_open())return false;
-    std::stringstream ss; ss<<f.rdbuf(); out=ss.str(); return !out.empty();
+    std::ifstream f(p); 
+    if(!f.is_open()) return false;
+    
+    std::stringstream ss; 
+    ss << f.rdbuf(); 
+    out = ss.str(); 
+    return !out.empty();
 }
 
 int main(int argc, char* argv[]) {
-    const char* staticDir = argc>=2 ? argv[1] : "static";
-    std::string indexPath = std::string(staticDir)+"/index_v2.html";
+    const char* staticDir = argc >= 2 ? argv[1] : "static";
+    std::string indexPath = std::string(staticDir) + "/index_v2.html";
     if (!loadFile(indexPath, g_index_html)) {
         // Fallback to index.html
-        indexPath = std::string(staticDir)+"/index.html";
+        indexPath = std::string(staticDir) + "/index.html";
         if (!loadFile(indexPath, g_index_html)) {
             std::cerr<<"[ERR] Cannot load index.html\n"; return 1;
         }
     }
-    std::cout<<"[INFO] Loaded "<<indexPath<<" ("<<g_index_html.size()<<" bytes)\n";
+    std::cout << "[INFO] Loaded "<<indexPath<< " (" << g_index_html.size() << " bytes)\n";
 
-    constexpr size_t N=9;
+    constexpr size_t N = 9;
     service_element_t* routes[N]={};
-    struct{const char* p;size_t l;void*(*h)(service_element_t*,http_request_context_t*);} rd[]={
+    struct { 
+        const char* p;
+        size_t l;
+        void*(*h)(service_element_t*,http_request_context_t*);
+    } rd[] = {
         {"/",1,hIndex},{"/api/scene",10,hScene},{"/api/radars",11,hRadars},{"/api/radar",10,hRadar},
         {"/api/jammers",12,hJammers},{"/api/jammer",11,hJammer},{"/api/simulate",13,hSim},
         {"/api/dqn/state",14,hDqnState},{"/api/dqn/action",14,hDqnAction},
     };
-    static_assert(sizeof(rd)/sizeof(rd[0])==N,"route count mismatch");
-    for(size_t i=0;i<N;i++){
+
+    static_assert(sizeof(rd) / sizeof(rd[0]) == N,"route count mismatch");
+    for(size_t i = 0; i < N; i++) {
         routes[i]=makeServiceElement((char*)rd[i].p, rd[i].l, rd[i].h);
         if(!routes[i]){std::cerr<<"[ERR] route "<<rd[i].p<<" failed\n"; return 1;}
     }
 
-    auto* app=makeMyWebAppV1(routes,N); if(!app){std::cerr<<"[ERR] app failed\n"; return 1;}
-    auto* srv=makeMyTcpServer((char*)"0.0.0.0",8080);
-    if(!srv){std::cerr<<"[ERR] HTTP server failed\n";deleteMyWebAppV1(app);return 1;}
+    my_web_app_v1_t* app = makeMyWebAppV1(routes,N); 
+    if(!app) {
+        std::cerr<<"[ERR] app failed\n"; 
+        return 1;
+    }
+    
+    my_tcp_server_t* srv = makeMyTcpServer((char*)"0.0.0.0",8080);
+    if(!srv) {
+        std::cerr<<"[ERR] HTTP server failed\n";
+        deleteMyWebAppV1(app); return 1;
+    }
+    
     myTcpServerSetCliSkReadCbArgs(srv,makeCliSkReadCbArgs(myWebAppV1MakeResponse,app));
 
     std::thread httpThr([srv](){std::cout<<"[INFO] HTTP :8080\n";myTcpServerStart(srv);});
@@ -354,8 +405,11 @@ int main(int argc, char* argv[]) {
     AgentSvc agentSvc;
     grpc::ServerBuilder gb; gb.AddListeningPort("0.0.0.0:50051",grpc::InsecureServerCredentials());
     gb.RegisterService(&agentSvc);
+    
     auto gs=gb.BuildAndStart();
-    if(!gs){std::cerr<<"[ERR] gRPC failed\n"; return 1;}
+    if(!gs) {
+        std::cerr<<"[ERR] gRPC failed\n"; return 1;
+    }
     std::cout<<"[INFO] gRPC :50051\n";
 
     gs->Wait(); httpThr.join();

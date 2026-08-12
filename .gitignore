@@ -8,6 +8,7 @@ mykeys/
 .python-version
 __pycache__
 
-.so
-.o
+*.so
+*.o
+*.pth
 

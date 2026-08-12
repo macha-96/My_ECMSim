@@ -113,7 +113,7 @@ double calc2DDistance(double x1, double y1, double x2, double y2) {
 // ========== 瞄频干扰频域匹配模型 ==========
 
 double freqMatchRect(double delta_f, double B) {
-    return delta_f <= B / 2.0 ? 1.0 : 0.0;
+    return std::abs(delta_f) <= B / 2.0 ? 1.0 : 0.0;
 }
 
 double freqMatchGauss(double delta_f, double B) {
