@@ -67,6 +67,8 @@ class DQNTrainer:
 
     def run_episode(self, verbose=False):
         try:
+            # 新增：episode态势重置
+            self.client.reset()
             state = self.client.get_state(self.jammer_id)
         except Exception as e:
             print(f"[WARN] get_state failed: {e}")

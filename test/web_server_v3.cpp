@@ -253,52 +253,83 @@ send: return allocResp(resp, ctx);
 
 extern "C" void* hSim(service_element_t*, http_request_context_t* ctx) {
     LOG_INFO("POST /api/simulate");
-    if (ctx->method!=POST) return allocResp(jsonErr("use POST"), ctx);
-    auto body=parseBody(ctx); std::string sid=body["session_id"].asString();
+    if (ctx->method != POST) 
+        return allocResp(jsonErr("use POST"), ctx);
+    
+    auto body = parseBody(ctx); 
+    std::string sid = body["session_id"].asString();
+    
     if (sid.empty()) return allocResp(jsonErr("need session_id"), ctx);
     if (!g_scene_mgr.hasSession(sid)) return allocResp(jsonErr("session not found"), ctx);
+    
     auto results = g_scene_mgr.runSimulation(sid);
     Json::Value arr(Json::arrayValue);
     for (const auto& r : results) {
         Json::Value item;
-        item["radar_id"]=r.radar_id; item["SINR_dB"]=r.sinr_db;
-        item["signal_power_W"]=r.signal_power; item["total_effective_jam_power_W"]=r.total_effective_jam_power;
-        item["jsr_dB"]=r.jsr_db; item["detect_success"]=r.detect_ok;
-        item["jam_success_score"]=r.jam_success_score;
-        item["is_deception_active"]=r.is_deception_active; item["decept_effect_score"]=r.decept_effect_score;
+        item["radar_id"] = r.radar_id; 
+        item["SINR_dB"] = r.sinr_db;
+        item["signal_power_W"] = r.signal_power; 
+        item["total_effective_jam_power_W"] = r.total_effective_jam_power;
+        item["jsr_dB"] = r.jsr_db; 
+        item["detect_success"] = r.detect_ok;
+        item["jam_success_score"] = r.jam_success_score;
+        item["is_deception_active"] = r.is_deception_active; 
+        item["decept_effect_score"] = r.decept_effect_score;
         Json::Value jd(Json::arrayValue);
-        for (size_t i=0;i<r.jammer_ids.size();i++) {
-            Json::Value j; j["jammer_id"]=r.jammer_ids[i]; j["freq_delta_Hz"]=r.jam_freq_deltas[i];
-            j["freq_match_factor"]=r.freq_match_factors[i]; j["effective_power_W"]=r.effective_jam_powers[i];
+        for (size_t i = 0; i < r.jammer_ids.size(); i++) {
+            Json::Value j; 
+            j["jammer_id"] = r.jammer_ids[i]; 
+            j["freq_delta_Hz"] = r.jam_freq_deltas[i];
+            j["freq_match_factor"] = r.freq_match_factors[i]; 
+            j["effective_power_W"] = r.effective_jam_powers[i];
             jd.append(j);
         }
-        item["jammer_details"]=jd; arr.append(item);
+        item["jammer_details"] = jd; 
+        arr.append(item);
     }
-    Json::Value ret; ret["success"]=true; ret["sim_results"]=arr;
+    Json::Value ret; 
+    ret["success"] = true; 
+    ret["sim_results"] = arr;
     return allocResp(makeJson(ret), ctx);
 }
 
 extern "C" void* hDqnState(service_element_t*, http_request_context_t* ctx) {
     LOG_INFO("GET /api/dqn/state");
-    if (ctx->method!=GET) return allocResp(jsonErr("use GET"), ctx);
-    auto body=parseBody(ctx); std::string sid=body["session_id"].asString();
-    int jid=body["jammer_id"].asInt();
-    if (sid.empty()||!jid) return allocResp(jsonErr("need session_id and jammer_id"), ctx);
-    auto state=g_scene_mgr.getStateForJammer(sid, jid);
-    if (state.empty()) return allocResp(jsonErr("jammer not found"), ctx);
-    Json::Value s(Json::arrayValue); for (double v:state) s.append(v);
-    Json::Value ret; ret["success"]=true; ret["state"]=s;
+    if (ctx->method != GET) return allocResp(jsonErr("use GET"), ctx);
+    
+    auto body = parseBody(ctx); 
+    std::string sid = body["session_id"].asString();
+    int jid = body["jammer_id"].asInt();
+    if (sid.empty() || !jid) 
+        return allocResp(jsonErr("need session_id and jammer_id"), ctx);
+    
+    auto state = g_scene_mgr.getStateForJammer(sid, jid);
+    if (state.empty()) 
+        return allocResp(jsonErr("jammer not found"), ctx);
+    
+    Json::Value s(Json::arrayValue); 
+    for (double v:state) s.append(v);
+    Json::Value ret; 
+    ret["success"] = true; 
+    ret["state"] = s;
     return allocResp(makeJson(ret), ctx);
 }
 
 extern "C" void* hDqnAction(service_element_t*, http_request_context_t* ctx) {
     LOG_INFO("POST /api/dqn/action");
-    if (ctx->method!=POST) return allocResp(jsonErr("use POST"), ctx);
-    auto body=parseBody(ctx); std::string sid=body["session_id"].asString();
-    int jid=body["jammer_id"].asInt(); double pd=body["power_dbm"].asDouble(); double fq=body["jam_freq"].asDouble();
-    if (sid.empty()||!jid) return allocResp(jsonErr("need session_id and jammer_id"), ctx);
-    bool ok=g_scene_mgr.executeJammerAction(sid, jid, pd, fq);
-    return allocResp(ok?jsonOk():jsonErr("jammer not found"), ctx);
+    if (ctx->method != POST) 
+        return allocResp(jsonErr("use POST"), ctx);
+    
+    auto body = parseBody(ctx); 
+    std::string sid = body["session_id"].asString();
+    int jid = body["jammer_id"].asInt(); 
+    double pd = body["power_dbm"].asDouble(); 
+    double fq = body["jam_freq"].asDouble();
+    
+    if (sid.empty() || !jid) return allocResp(jsonErr("need session_id and jammer_id"), ctx);
+    
+    bool ok = g_scene_mgr.executeJammerAction(sid, jid, pd, fq);
+    return allocResp(ok ? jsonOk() : jsonErr("jammer not found"), ctx);
 }
 
 /* ====== gRPC ====== */
