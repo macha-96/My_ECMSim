@@ -76,10 +76,29 @@ let ci={xM:0,xX:10000,yM:0,yX:10000,mg:50,sc:1,h:340};
 
 async function POST(u,b){return(await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();}
 
+let ws=null;
+function connectWS(){
+  if(!sid)return;
+  ws=new WebSocket("ws://"+location.host+"/ws?session_id="+sid);
+  ws.onopen=()=>{st("WS已连接");};
+  ws.onmessage=(evt)=>{
+    try{
+      const msg=JSON.parse(evt.data);
+      if(msg.radars||msg.jammers){
+        sc={radars:msg.radars||[],jammers:msg.jammers||[]};
+        bC(); dS();
+      }
+    }catch(e){}
+  };
+  ws.onclose=()=>{st("WS断开，重连中...");setTimeout(connectWS,2000);};
+  ws.onerror=()=>{ws.close();};
+}
+
 window.onload=async()=>{
   const r=await POST('/api/scene',{});
   if(!r.success)return;
   sid=r.session_id; document.getElementById('sl').textContent=sid;
+  connectWS();
   await fSc();
   const cvs=document.getElementById('s-canvas');
   cvs.addEventListener('mousedown',onMD); cvs.addEventListener('mousemove',onMM);
