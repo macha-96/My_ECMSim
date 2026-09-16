@@ -377,7 +377,10 @@ std::string handleRadars(const http::request<http::string_body>& req) {
     } else if (req.method() == http::verb::post) {
         /* 从 JSON 构造 Radar 对象并添加到场景 */
         auto jr = body["radar"];
-        if (jr.isNull()) { resp = jsonErr("need radar object"); goto send; }
+        if (jr.isNull()) {
+            resp = jsonErr("need radar object");
+            goto send;
+        }
         ECMSim::Radar rad(
             jr["id"].asInt(), jr["x"].asDouble(), jr["y"].asDouble(),
             jr["Pt_dBm"].asDouble(), jr["G_dB"].asDouble(), jr["freq"].asDouble(),
@@ -541,12 +544,15 @@ std::string handleJammer(const http::request<http::string_body>& req) {
         if (action == "del") {
             int jid = body["jammer_id"].asInt();
             if (!jid) { resp = jsonErr("need jammer_id"); goto send; }
+
             bool ok = g_scene_mgr.removeJammer(sid, jid);
             if (ok) broadcastScene(sid);
+
             resp = ok ? jsonOk() : jsonErr("not found");
         } else if (action == "update") {
             auto jv = body["jammer"];
             if (jv.isNull()) { resp = jsonErr("need jammer"); goto send; }
+
             int jid = jv["id"].asInt();
             ECMSim::JamType jt
                 = jv["jam_type"].asString() == "NOISE_JAM"
@@ -555,8 +561,10 @@ std::string handleJammer(const http::request<http::string_body>& req) {
                 jid, jv["x"].asDouble(), jv["y"].asDouble(),
                 jv["Pj_dBm"].asDouble(), jv["Gj_dB"].asDouble(),
                 jv["jam_freq"].asDouble(), jt);
+
             bool ok = g_scene_mgr.updateJammer(sid, jid, jam);
             if (ok) broadcastScene(sid);
+
             resp = ok ? jsonOk() : jsonErr("update failed");
         } else {
             resp = jsonErr("unknown action");
@@ -564,9 +572,11 @@ std::string handleJammer(const http::request<http::string_body>& req) {
     } else if (req.method() == http::verb::get || req.method() == http::verb::delete_) {
         int jid = body["jammer_id"].asInt();
         if (!jid) { resp = jsonErr("need jammer_id"); goto send; }
+        
         if (req.method() == http::verb::get) {
             auto* j = g_scene_mgr.getJammer(sid, jid);
             if (!j) { resp = jsonErr("not found"); goto send; }
+
             Json::Value jv;
             jv["success"] = true;
             jv["jammer_id"] = jid;
@@ -586,6 +596,7 @@ std::string handleJammer(const http::request<http::string_body>& req) {
     } else if (req.method() == http::verb::put) {
         auto jv = body["jammer"];
         if (jv.isNull()) { resp = jsonErr("need jammer"); goto send; }
+
         int jid = jv["id"].asInt();
         ECMSim::JamType jt
             = jv["jam_type"].asString() == "NOISE_JAM"
@@ -594,6 +605,7 @@ std::string handleJammer(const http::request<http::string_body>& req) {
             jid, jv["x"].asDouble(), jv["y"].asDouble(),
             jv["Pj_dBm"].asDouble(), jv["Gj_dB"].asDouble(),
             jv["jam_freq"].asDouble(), jt);
+            
         bool ok = g_scene_mgr.updateJammer(sid, jid, jam);
         if (ok) broadcastScene(sid);
         resp = ok ? jsonOk() : jsonErr("update failed");
