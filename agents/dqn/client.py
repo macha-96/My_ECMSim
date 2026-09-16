@@ -48,6 +48,9 @@ class ECMSimClient:
             )
         return rep.results
 
+    def reset(self):
+        pass
+
     def close(self):
         self.channel.close()
 

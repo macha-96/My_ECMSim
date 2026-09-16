@@ -76,10 +76,12 @@ ws_broadcaster g_broadcaster;
 /* ====== WebSocket Session (defined after ws_broadcaster) ====== */
 class websocket_session : public std::enable_shared_from_this<websocket_session> {
 public:
-    websocket_session(tcp::socket socket, const std::string& sid): ws_(std::move(socket)), sid_(sid) {}
+    websocket_session(tcp::socket socket, http::request<http::string_body> req,
+                      const std::string& sid)
+        : ws_(std::move(socket)), req_(std::move(req)), sid_(sid) {}
 
     void start() {
-        ws_.async_accept(
+        ws_.async_accept(req_,
             [self = shared_from_this()](beast::error_code ec) {
                 if (ec) return;
                 g_broadcaster.subscribe(self->sid_, self.get());
@@ -110,6 +112,7 @@ private:
     }
 
     websocket::stream<tcp::socket> ws_;
+    http::request<http::string_body> req_;
     std::string sid_;
     beast::flat_buffer buffer_;
 };
@@ -785,7 +788,7 @@ private:
             std::string sid = extractSessionId(target);
             if (!sid.empty()) {
                 auto ws = std::make_shared<websocket_session>(
-                    std::move(socket_), sid);
+                    std::move(socket_), std::move(req_), sid);
                 ws->start();
             }
             return;
