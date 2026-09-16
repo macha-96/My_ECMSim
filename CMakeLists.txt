@@ -96,79 +96,42 @@ target_link_libraries(sim_core PUBLIC
     rt
 )
 
-set(MY_WEBSERVER_PATH ${PROJECT_SOURCE_DIR}/../cppprojects/my_simple_webserver/my_simple_webserver)
-set(BOOST_ROOT ${BOOST_ROOT} CACHE PATH "Boost root for subproject" FORCE)
-add_subdirectory(${MY_WEBSERVER_PATH} ${CMAKE_BINARY_DIR}/my_simple_webserver_build)
-
-set(APP_HTTP_FAST ${PROJECT_SOURCE_DIR}/src/app/http_server_fast.cpp)
-set(APP_WS_FAST   ${PROJECT_SOURCE_DIR}/src/app/websocket_server_fast.cpp)
 set(APP_HTTP_BEAST ${PROJECT_SOURCE_DIR}/src/app/web_server_beast.cpp)
 
-add_executable(ecmsim_http ${APP_HTTP_FAST})
-target_link_libraries(ecmsim_http
-    PRIVATE
-        sim_core
-        my_simple_webserver_core
-        ${PROJECT_SOURCE_DIR}/lib/libreactor.so
-        grpc++
-        protobuf
-        ${Boost_LIBRARIES}
-)
-set_target_properties(ecmsim_http PROPERTIES
-    INSTALL_RPATH "$ORIGIN/../lib"
-    BUILD_RPATH "$ORIGIN/../lib"
-)
-
-add_executable(ecmsim_ws ${APP_WS_FAST})
-target_link_libraries(ecmsim_ws
-    PRIVATE
-        sim_core
-        my_simple_webserver_core
-        ${PROJECT_SOURCE_DIR}/lib/libreactor.so
-        grpc++
-        protobuf
-        ${Boost_LIBRARIES}
-)
-set_target_properties(ecmsim_ws PROPERTIES
-    INSTALL_RPATH "$ORIGIN/../lib"
-    BUILD_RPATH "$ORIGIN/../lib"
+set(GRPC_LIBS
+    ${GRPC_LIB_DIR}/libgrpc++.a
+    ${GRPC_LIB_DIR}/libgrpc.a
+    ${GRPC_LIB_DIR}/libgpr.a
+    ${GRPC_LIB_DIR}/libaddress_sorting.a
+    ${GRPC_LIB_DIR}/libupb_base_lib.a
+    ${GRPC_LIB_DIR}/libupb_hash_lib.a
+    ${GRPC_LIB_DIR}/libupb_json_lib.a
+    ${GRPC_LIB_DIR}/libupb_lex_lib.a
+    ${GRPC_LIB_DIR}/libupb_mem_lib.a
+    ${GRPC_LIB_DIR}/libupb_message_lib.a
+    ${GRPC_LIB_DIR}/libupb_mini_descriptor_lib.a
+    ${GRPC_LIB_DIR}/libupb_mini_table_lib.a
+    ${GRPC_LIB_DIR}/libupb_reflection_lib.a
+    ${GRPC_LIB_DIR}/libupb_textformat_lib.a
+    ${GRPC_LIB_DIR}/libupb_wire_lib.a
+    ${GRPC_LIB_DIR}/libutf8_range_lib.a
+    ${GRPC_LIB_DIR}/libutf8_validity.a
+    ${GRPC_LIB_DIR}/libutf8_range.a
+    ${GRPC_LIB_DIR}/libre2.a
+    ${GRPC_LIB_DIR}/libssl.a
+    ${GRPC_LIB_DIR}/libcrypto.a
+    ${GRPC_LIB_DIR}/libz.a
+    ${GRPC_LIB_DIR}/libcares.a
+    ${GRPC_LIB_DIR}/libprotobuf.a
 )
 
 add_executable(ecmsim_http_beast ${APP_HTTP_BEAST})
 target_link_libraries(ecmsim_http_beast
     PRIVATE
         sim_core
-        ${PROJECT_SOURCE_DIR}/lib/libreactor.so
-        ${GRPC_LIB_DIR}/libgrpc++.a
-        ${GRPC_LIB_DIR}/libgrpc.a
-        ${GRPC_LIB_DIR}/libgpr.a
-        ${GRPC_LIB_DIR}/libprotobuf.a
-        ${Boost_LIBRARIES}
         -Wl,--start-group
-        ${GRPC_LIB_DIR}/libgrpc++.a
-        ${GRPC_LIB_DIR}/libgrpc.a
-        ${GRPC_LIB_DIR}/libgpr.a
-        ${GRPC_LIB_DIR}/libaddress_sorting.a
-        ${GRPC_LIB_DIR}/libupb_base_lib.a
-        ${GRPC_LIB_DIR}/libupb_hash_lib.a
-        ${GRPC_LIB_DIR}/libupb_json_lib.a
-        ${GRPC_LIB_DIR}/libupb_lex_lib.a
-        ${GRPC_LIB_DIR}/libupb_mem_lib.a
-        ${GRPC_LIB_DIR}/libupb_message_lib.a
-        ${GRPC_LIB_DIR}/libupb_mini_descriptor_lib.a
-        ${GRPC_LIB_DIR}/libupb_mini_table_lib.a
-        ${GRPC_LIB_DIR}/libupb_reflection_lib.a
-        ${GRPC_LIB_DIR}/libupb_textformat_lib.a
-        ${GRPC_LIB_DIR}/libupb_wire_lib.a
-        ${GRPC_LIB_DIR}/libutf8_range_lib.a
-        ${GRPC_LIB_DIR}/libutf8_validity.a
-        ${GRPC_LIB_DIR}/libutf8_range.a
-        ${GRPC_LIB_DIR}/libre2.a
-        ${GRPC_LIB_DIR}/libssl.a
-        ${GRPC_LIB_DIR}/libcrypto.a
-        ${GRPC_LIB_DIR}/libz.a
-        ${GRPC_LIB_DIR}/libcares.a
-        ${GRPC_LIB_DIR}/libprotobuf.a
+        ${GRPC_LIBS}
+        ${Boost_LIBRARIES}
         absl::base
         absl::strings
         absl::cord
