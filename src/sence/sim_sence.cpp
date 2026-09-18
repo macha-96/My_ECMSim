@@ -179,11 +179,12 @@ std::vector<double> SimScene::getStateForJammer(int jammer_id) const {
         state.push_back(ry / 20000.0);        // 雷达Y
         state.push_back(radar.getFreq() / 20e9); // 雷达频率 [0,1] 归一化
         state.push_back(radar.getBandwidth() / 10e6); // 带宽 [0,1]
+        state.push_back(radar.getPtLin() / 1000.0); // 雷达功率 [0,1] (max 60dBm=1000W)
         state.push_back(dist / 30000.0);      // 距离 [0,1]
         state.push_back(delta_f / 10e9);      // 频差 [0,1]
     }
     // 干扰机自身状态
-    state.push_back(jam->getPjLin() / 1000.0);  // 功率 [0,1]
+    state.push_back(jam->getPjLin() / 1000.0);  // 功率 [0,1] (max 60dBm=1000W)
     state.push_back(jam->getJamFreq() / 20e9); // 频率 [0,1]
 
     return state;

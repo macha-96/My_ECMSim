@@ -170,6 +170,7 @@ std::vector<double> SceneManager::getStateForJammer(const std::string& sid, int 
         state.push_back(ry / 20000.0);
         state.push_back(radar.getFreq() / 20e9);
         state.push_back(radar.getBandwidth() / 10e6);
+        state.push_back(radar.getPtLin() / 1000.0); // 雷达功率 [0,1]
         state.push_back(dist / 30000.0);
         state.push_back(delta_f / 10e9);
     }
