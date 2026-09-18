@@ -8,7 +8,7 @@ epsilon_decay: 20000
 target_update_step: 100
 buffer_capacity: 10000
 batch_size: 64
-max_train_episode: 2000
+max_train_episode: 3000
 
 # gRPC / HTTP backend addresses
 grpc_target: "localhost:50051"
@@ -39,7 +39,7 @@ scene_jammers:
     jam_type: "NOISE_JAM"
 
 # State / action dimensions
-state_dim: 8
+state_dim: 9
 action_dim: 21
 power_level_num: 7
 freq_shift_num: 3

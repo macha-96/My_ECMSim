@@ -1,4 +1,4 @@
-import sys, os, time, numpy as np, requests, yaml
+import sys, os, time, numpy as np, requests, yaml, random
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from client import ECMSimClient
 from core.dqn_agent import DQNJammerAgent
@@ -36,6 +36,7 @@ class DQNTrainer:
         # Freq shift parameters
         self.freq_shift_num = cfg.get("freq_shift_num", 3)
         self.freq_shift_mult = cfg.get("freq_shift_mult", 2.5)
+        self.ep = 0  # Current episode counter
 
     def index_to_action(self, idx):
         pn = self.cfg["power_level_num"]
@@ -48,6 +49,39 @@ class DQNTrainer:
         freq_shift = (f_idx - center) * (self.radar_bw * self.freq_shift_mult)
         jam_freq = self.radar_freq + freq_shift
         return power_dbm, jam_freq
+
+    def index_to_action_with_freq(self, idx, actual_radar_freq):
+        pn = self.cfg["power_level_num"]
+        p_idx = idx % pn
+        f_idx = idx // pn
+        power_dbm  = p_idx * 10.0
+        center = self.freq_shift_num // 2
+        freq_shift = (f_idx - center) * (self.radar_bw * self.freq_shift_mult)
+        jam_freq = actual_radar_freq + freq_shift
+        return power_dbm, jam_freq
+
+    def randomize_radar(self):
+        """Randomize radar power and frequency for domain randomization."""
+        # Randomize power: 0-60 dBm
+        new_power = random.choice([0, 10, 20, 30, 40, 50, 60])
+        # Randomize frequency: 9.5-10.5 GHz (within ±500 MHz of nominal)
+        new_freq = self.radar_freq + random.uniform(-500e6, 500e6)
+        # Update radar via HTTP
+        try:
+            radar_cfg = None
+            for rc in self.cfg["scene_radars"]:
+                if rc["id"] == self.radar_id:
+                    radar_cfg = rc.copy()
+                    break
+            if radar_cfg:
+                radar_cfg["Pt_dBm"] = new_power
+                radar_cfg["freq"] = new_freq
+                http_target = self.cfg["http_target"]
+                requests.put(f"{http_target}/api/radar",
+                    json={"session_id": self.client.session_id, "radar": radar_cfg},
+                    timeout=10)
+        except Exception as e:
+            pass  # Ignore HTTP errors during training
 
     def compute_reward(self, results, power_dbm):
         """Continuous multi-dimensional reward (optimize.md §4.2):
@@ -67,6 +101,9 @@ class DQNTrainer:
 
     def run_episode(self, verbose=False):
         try:
+            # Domain randomization: randomize radar params before each episode
+            if self.ep > 100:  # After initial exploration, start randomizing
+                self.randomize_radar()
             # 新增：episode态势重置
             self.client.reset()
             state = self.client.get_state(self.jammer_id)
@@ -78,9 +115,11 @@ class DQNTrainer:
         step = 0
         step_log = []
         while step < 50:
+            # Extract actual radar freq from state (index 2: radar_freq / 20e9)
+            actual_radar_freq = state[2] * 20e9
             act_idx = self.agent.choose_action(state_np)
-            power_dbm, jam_freq = self.index_to_action(act_idx)
-            freq_shift_khz = (jam_freq - self.radar_freq) / 1e3
+            power_dbm, jam_freq = self.index_to_action_with_freq(act_idx, actual_radar_freq)
+            freq_shift_khz = (jam_freq - actual_radar_freq) / 1e3
             try:
                 self.client.execute_action(self.jammer_id, power_dbm, jam_freq)
                 results = self.client.step_simulation()
@@ -124,6 +163,7 @@ class DQNTrainer:
         mkdir_if_not_exist(wdir)
         print(f"[TRAIN] radar_id={self.radar_id} jammer_id={self.jammer_id} episodes={self.max_ep}")
         for ep in range(1, self.max_ep + 1):
+            self.ep = ep
             verbose = (ep == 1 or ep % 100 == 0)
             ep_reward, log = self.run_episode(verbose=verbose)
             if ep % 20 == 0 or ep == 1:

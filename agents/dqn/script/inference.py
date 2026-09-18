@@ -51,8 +51,7 @@ def main():
     args = parse_args()
     cfg = load_config(args.config)
 
-    # Get radar freq/bw from config for action mapping
-    radar_freq = cfg["scene_radars"][0]["freq"]
+    # Get radar bw from config for action mapping (freq will come from state)
     radar_bw   = cfg["scene_radars"][0]["bandwidth"]
 
     # Connect via gRPC
@@ -76,14 +75,17 @@ def main():
             state = client.get_state(args.jammer_id)
             print(f"  state ({len(state)}): {[round(v, 3) for v in state]}")
 
+            # Extract actual radar freq from state (index 2: radar_freq / 20e9)
+            actual_radar_freq = state[2] * 20e9
+
             # 2. Choose action
             if agent:
                 state_np = np.array(state, dtype=np.float32)
                 act = agent.choose_action(state_np)
-                power_dbm, jam_freq = index_to_action(act, radar_freq, radar_bw, cfg)
+                power_dbm, jam_freq = index_to_action(act, actual_radar_freq, radar_bw, cfg)
                 print(f"  DQN act {act}: {power_dbm:.0f}dBm {jam_freq/1e9:.3f}GHz")
             else:
-                act, power_dbm, jam_freq = 0, 0.0, radar_freq
+                act, power_dbm, jam_freq = 0, 0.0, actual_radar_freq
                 print(f"  no model — skip action")
 
             # 3. Execute action
