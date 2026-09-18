@@ -48,6 +48,13 @@ public:
     std::string getSceneJson(const std::string& sid) const;
     bool loadSceneFromJson(const std::string& sid, const std::string& jsonStr);
 
+    // Resource management and statistics
+    void cleanupStaleSessions(uint64_t max_age_seconds = 1800); // 30 minutes default
+    std::unordered_map<std::string, uint64_t> getAllSessions() const; // sid -> last_access
+    size_t getSessionCount() const;
+    size_t getTotalRadarCount() const;
+    size_t getTotalJammerCount() const;
+
 private:
     mutable std::mutex m_mtx;
     std::unordered_map<std::string, std::unique_ptr<SessionData>> m_sessions;

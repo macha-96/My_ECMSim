@@ -275,4 +275,54 @@ bool SceneManager::loadSceneFromJson(const std::string& sid, const std::string& 
     return true;
 }
 
+void SceneManager::cleanupStaleSessions(uint64_t max_age_seconds) {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    uint64_t now = static_cast<uint64_t>(std::time(nullptr));
+    uint64_t cutoff = now - max_age_seconds;
+
+    auto it = m_sessions.begin();
+    while (it != m_sessions.end()) {
+        if (it->second->last_access < cutoff) {
+            // 先通知WebSocket广播器这个会话被清理
+            // 注意：这里不能直接调用g_broadcaster，因为它在不同的编译单元
+            // WebSocket清理会在web_server_beast.cpp的cleanup中处理
+            it = m_sessions.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+std::unordered_map<std::string, uint64_t> SceneManager::getAllSessions() const {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    std::unordered_map<std::string, uint64_t> result;
+    for (const auto& [sid, data] : m_sessions) {
+        result[sid] = data->last_access;
+    }
+    return result;
+}
+
+size_t SceneManager::getSessionCount() const {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    return m_sessions.size();
+}
+
+size_t SceneManager::getTotalRadarCount() const {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    size_t total = 0;
+    for (const auto& [sid, data] : m_sessions) {
+        total += data->radars.size();
+    }
+    return total;
+}
+
+size_t SceneManager::getTotalJammerCount() const {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    size_t total = 0;
+    for (const auto& [sid, data] : m_sessions) {
+        total += data->jammers.size();
+    }
+    return total;
+}
+
 }
