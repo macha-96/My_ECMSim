@@ -171,8 +171,9 @@ function connectWS() {
     try {
       const msg = JSON.parse(evt.data);
       if (msg.radars || msg.jammers) {
+        const rebuild = entitiesChanged(msg);
         sc = { radars: msg.radars || [], jammers: msg.jammers || [] };
-        bC();
+        if (rebuild) { bC(); } else { uC(); }
         dS();
       }
     } catch (e) { /* ignore parse errors */ }
@@ -256,6 +257,7 @@ async function rm(t, id) {
 }
 
 function reb() {
+  dirty.clear();
   hist = [];
   document.getElementById('rb').innerHTML = '';
   document.getElementById('jdb').innerHTML = '';
@@ -304,7 +306,7 @@ function bC() {
       ms('Gj_dB', 'j' + j.id, 'Gain', j.Gj_dB, 0, 40, 0.5) +
       ms('jam_freq', 'j' + j.id, 'Freq', j.jam_freq / 1e9, 1, 20, 0.1, 'f') +
       '<div class="pr"><label>Type</label>' +
-      '<select id="jt' + j.id + '" onchange="sch()">' + op + '</select></div>';
+      '<select id="jt' + j.id + '" onchange="markD(\'jam_type_j' + j.id + '\');sch()">' + op + '</select></div>';
     c.appendChild(g);
   }
   aF();
@@ -317,12 +319,22 @@ function ms(p, id, l, v, mi, ma, st, g) {
     '<input type="number" id="nu_' + u + '" value="' + (g === 'f' ? v.toFixed(2) : v) + '" step="' + st + '" onchange="onNU(\'' + u + '\',\'' + mi + '\',\'' + ma + '\',\'' + (g || '') + '\')"></div>';
 }
 
+// --- Dirty tracking: user-modified control cells, pending sync ---
+const dirty = new Set();
+function markD(u) { dirty.add(u); }
+
+function isFocused(u) {
+  const ae = document.activeElement;
+  return !!ae && (ae.id === 'sl_' + u || ae.id === 'nu_' + u);
+}
+
 function onSI(u, g) {
   const s = document.getElementById('sl_' + u);
   const n = document.getElementById('nu_' + u);
   if (s && n) {
     const v = parseFloat(s.value);
     n.value = g === 'f' ? v.toFixed(2) : v;
+    markD(u);
     sch();
   }
 }
@@ -335,6 +347,7 @@ function onNU(u, mi, ma, g) {
     v = Math.max(parseFloat(mi), Math.min(parseFloat(ma), v));
     n.value = g === 'f' ? v.toFixed(2) : v;
     s.value = v;
+    markD(u);
     sch();
   }
 }
@@ -350,28 +363,108 @@ function sch() {
 
 async function sync() {
   if (!sid || !sc) return;
+  if (dirty.size === 0) return;
+  // Group dirty cells by entity: u looks like "prop_ID" or "prop_jID"
+  const radarKeys = new Set(), jammerKeys = new Set();
+  for (const u of dirty) {
+    const i = u.lastIndexOf('_');
+    const key = u.slice(i + 1);
+    if (/^j\d+$/.test(key)) jammerKeys.add(key);   // "j3" → jammer id 3
+    else radarKeys.add(key);                        // "1"  → radar id 1
+  }
   for (const r of sc.radars || []) {
-    r.x = gn('x_' + r.id);
-    r.y = gn('y_' + r.id);
-    r.Pt_dBm = gn('Pt_dBm_' + r.id);
-    r.G_dB = gn('G_dB_' + r.id);
-    r.freq = gn('freq_' + r.id) * 1e9;
-    r.bandwidth = gn('bandwidth_' + r.id) * 1e6;
-    r.sigma = gn('sigma_' + r.id);
-    r.thresh_db = gn('thresh_db_' + r.id);
-    await POST('/api/radar', { action: 'update', session_id: sid, radar: r });
+    const idStr = String(r.id);
+    let changed = false;
+    function dv(p) {
+      const u = p + '_' + idStr;
+      if (!dirty.has(u)) return null;
+      changed = true;
+      return gn(u);
+    }
+    let v;
+    if ((v = dv('x')) !== null) r.x = v;
+    if ((v = dv('y')) !== null) r.y = v;
+    if ((v = dv('Pt_dBm')) !== null) r.Pt_dBm = v;
+    if ((v = dv('G_dB')) !== null) r.G_dB = v;
+    if ((v = dv('freq')) !== null) r.freq = v * 1e9;
+    if ((v = dv('bandwidth')) !== null) r.bandwidth = v * 1e6;
+    if ((v = dv('sigma')) !== null) r.sigma = v;
+    if ((v = dv('thresh_db')) !== null) r.thresh_db = v;
+    if (!changed) continue;
+    const resp = await POST('/api/radar', { action: 'update', session_id: sid, radar: r });
+    if (resp.success) {
+      for (const u of [...dirty]) if (u.slice(u.lastIndexOf('_') + 1) === idStr) dirty.delete(u);
+    }
   }
   for (const j of sc.jammers || []) {
-    j.x = gn('x_j' + j.id);
-    j.y = gn('y_j' + j.id);
-    j.Pj_dBm = gn('Pj_dBm_j' + j.id);
-    j.Gj_dB = gn('Gj_dB_j' + j.id);
-    j.jam_freq = gn('jam_freq_j' + j.id) * 1e9;
-    const s = document.getElementById('jt' + j.id);
-    if (s) j.jam_type = s.value;
-    await POST('/api/jammer', { action: 'update', session_id: sid, jammer: j });
+    const idStr = 'j' + j.id;
+    let changed = false;
+    function dv(p) {
+      const u = p + '_' + idStr;
+      if (!dirty.has(u)) return null;
+      changed = true;
+      return gn(u);
+    }
+    let v;
+    if ((v = dv('x')) !== null) j.x = v;
+    if ((v = dv('y')) !== null) j.y = v;
+    if ((v = dv('Pj_dBm')) !== null) j.Pj_dBm = v;
+    if ((v = dv('Gj_dB')) !== null) j.Gj_dB = v;
+    if ((v = dv('jam_freq')) !== null) j.jam_freq = v * 1e9;
+    if (dirty.has('jam_type_' + idStr)) {
+      changed = true;
+      const s = document.getElementById('jt' + j.id);
+      if (s) j.jam_type = s.value;
+    }
+    if (!changed) continue;
+    const resp = await POST('/api/jammer', { action: 'update', session_id: sid, jammer: j });
+    if (resp.success) {
+      for (const u of [...dirty]) if (u.slice(u.lastIndexOf('_') + 1) === idStr) dirty.delete(u);
+    }
   }
   dS();
+}
+
+// --- Incremental control update from WS broadcast (no DOM rebuild) ---
+function setVal(u, v, g) {
+  if (dirty.has(u) || isFocused(u)) return;   // protect in-flight user input
+  const s = document.getElementById('sl_' + u);
+  const n = document.getElementById('nu_' + u);
+  if (!s || !n) return;
+  const shown = g === 'f' ? v.toFixed(2) : v;
+  if (String(n.value) !== String(shown)) { n.value = shown; }
+  if (Number(s.value) !== Number(v)) { s.value = v; }
+}
+
+function entitiesChanged(msg) {
+  const rIds = (sc?.radars || []).map(r => r.id).sort();
+  const jIds = (sc?.jammers || []).map(j => j.id).sort();
+  const nR = (msg.radars || []).map(r => r.id).sort();
+  const nJ = (msg.jammers || []).map(j => j.id).sort();
+  return rIds.join() !== nR.join() || jIds.join() !== nJ.join();
+}
+
+function uC() {
+  if (!sc) return;
+  for (const r of sc.radars || []) {
+    setVal('x_' + r.id, r.x);
+    setVal('y_' + r.id, r.y);
+    setVal('Pt_dBm_' + r.id, r.Pt_dBm);
+    setVal('G_dB_' + r.id, r.G_dB);
+    setVal('freq_' + r.id, r.freq / 1e9, 'f');
+    setVal('bandwidth_' + r.id, r.bandwidth / 1e6);
+    setVal('sigma_' + r.id, r.sigma);
+    setVal('thresh_db_' + r.id, r.thresh_db);
+  }
+  for (const j of sc.jammers || []) {
+    setVal('x_j' + j.id, j.x);
+    setVal('y_j' + j.id, j.y);
+    setVal('Pj_dBm_j' + j.id, j.Pj_dBm);
+    setVal('Gj_dB_j' + j.id, j.Gj_dB);
+    setVal('jam_freq_j' + j.id, j.jam_freq / 1e9, 'f');
+    const s = document.getElementById('jt' + j.id);
+    if (s && !dirty.has('jam_type_j' + j.id) && s !== document.activeElement && j.jam_type) s.value = j.jam_type;
+  }
 }
 
 function gn(id) {
@@ -693,6 +786,8 @@ function onMM(e) {
   en.x = Math.round(p2.x);
   en.y = Math.round(p2.y);
   const pf = drag.t === 'radar' ? '' : 'j';
+  markD('x_' + pf + drag.id);
+  markD('y_' + pf + drag.id);
   const xn = document.getElementById('nu_x_' + pf + drag.id);
   const yn = document.getElementById('nu_y_' + pf + drag.id);
   if (xn) {

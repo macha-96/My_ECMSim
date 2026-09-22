@@ -339,7 +339,7 @@ std::string handleSimulate(const http::request<http::string_body>& req) {
     ret["success"] = true;
     ret["sim_results"] = arr;
     std::string resp = makeJson(ret);
-    broadcastScene(sid);
+    // broadcastScene(sid);  /* 仿真不改变实体参数，无需推送（雷达/干扰机更新已由各自 handler 广播） */
     return resp;
 }
 
