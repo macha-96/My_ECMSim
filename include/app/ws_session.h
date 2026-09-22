@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/asio.hpp>
 #include <string>
@@ -11,6 +12,7 @@
 #include <deque>
 
 namespace beast = boost::beast;
+namespace http = beast::http;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
 using tcp = boost::asio::ip::tcp;
@@ -20,7 +22,6 @@ public:
     websocket_session(tcp::socket socket, http::request<http::string_body> req, const std::string& sid);
     void start();
     void send(const std::string& msg);
-    bool is_timed_out() const;
 
 private:
     void do_write();

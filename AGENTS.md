@@ -41,6 +41,13 @@ include/
   algo/                  — ECMAlgo namespace: physics constants + radar equations
   entity/                — ECMSim namespace: Radar, Jammer classes
   sence/                 — ECMSim namespace: SimScene + SceneManager
+  app/                   — V3 服务器模块头文件
+    common.h             — 全局状态、工具函数、cleanup_controller
+    ws_session.h         — WebSocket 会话 + 广播器
+    http_handlers.h      — HTTP API 处理函数
+    http_session.h       — HTTP 会话类 + 服务器类
+    grpc_service.h       — gRPC AgentService
+    router.h             — 字典树路由分发
   grpc_gen/              — generated gRPC stub code (build/grpc_gen/ during cmake)
   jsoncpp/json/          — bundled jsoncpp headers
 src/                     — .cpp mirrors of include/ layout
@@ -48,10 +55,14 @@ src/                     — .cpp mirrors of include/ layout
   entity/                — radar.cpp, jammer.cpp
   sence/                 — sim_sence.cpp + scene_manager.cpp
   jsoncpp/               — jsoncpp static lib
-  app/
-    web_server_beast.cpp — V3 main server (HTTP+gRPC+WebSocket, ~985 lines)
-    http_server_fast.cpp — alternative fast HTTP server
-    websocket_server_fast.cpp — alternative fast WebSocket server
+  app/                   — V3 服务器模块实现
+    web_server_beast.cpp — main() 入口 + 启动逻辑
+    common.cpp           — 工具函数 + cleanup_controller 实现
+    ws_session.cpp       — WebSocket 会话 + 广播器实现
+    http_handlers.cpp    — 10 个 API 处理函数
+    http_session.cpp     — HTTP 会话 + 服务器实现
+    grpc_service.cpp     — gRPC 服务实现
+    router.cpp           — 字典树路由分发实现
 build/                   — cmake build output (sim_core.a, grpc_gen/)
 bin/                     — compiled binaries
 static/
@@ -86,7 +97,7 @@ third_party/spdlog/      — spdlog v1.17.0 (header-only 日志库)
 ## Architecture
 
 - Two namespaces: ECMAlgo (physics/math, no state) and ECMSim (entities + simulation).
-- Include style: all paths relative to include/, e.g. `<entity/radar.h>`.
+- Include style: all paths relative to include/, e.g. `<entity/radar.h>`, `<app/common.h>`.
 - Unit convention: all physical quantities in linear SI (W, Hz, m) internally.
 - dB helpers (`db2lin`, `lin2db`) are inline in `include/algo/math_const.h`.
 - jsoncpp is statically compiled via `src/jsoncpp/jsoncpp.cpp`.
@@ -99,18 +110,22 @@ third_party/spdlog/      — spdlog v1.17.0 (header-only 日志库)
 
 ## V3 Architecture (HTTP + gRPC + WebSocket)
 
-### Server Components
+### Server Modules
 
-| Component | File | Port | Description |
-|-----------|------|------|-------------|
-| HTTP | `src/app/web_server_beast.cpp` | :8080 | REST API + static file serving |
-| gRPC | `src/app/web_server_beast.cpp` | :50051 | Python DQN agent communication |
-| WebSocket | `src/app/web_server_beast.cpp` | /ws?session_id=xxx | Real-time scene updates to frontend |
+| Module | Header | Source | Description |
+|--------|--------|--------|-------------|
+| Common | `include/app/common.h` | `src/app/common.cpp` | 全局状态、工具函数、cleanup_controller |
+| WebSocket | `include/app/ws_session.h` | `src/app/ws_session.cpp` | WebSocket 会话 + 广播器 |
+| HTTP Handlers | `include/app/http_handlers.h` | `src/app/http_handlers.cpp` | 10 个 API 处理函数 |
+| HTTP Session | `include/app/http_session.h` | `src/app/http_session.cpp` | HTTP 会话类 + 服务器类 |
+| gRPC | `include/app/grpc_service.h` | `src/app/grpc_service.cpp` | gRPC AgentService |
+| Router | `include/app/router.h` | `src/app/router.cpp` | 字典树路由分发 |
+| Entry | — | `src/app/web_server_beast.cpp` | main() 入口 + 启动逻辑 |
 
 ### CMake Build Target
 
 ```
-ecmsim_http_beast  →  src/app/web_server_beast.cpp + sim_core.a + gRPC + boost beast
+ecmsim_http_beast  →  src/app/*.cpp + sim_core.a + gRPC + boost beast
 sim_core           →  src/algo + src/entity + src/sence + src/jsoncpp + grpc_gen
 ```
 
@@ -135,6 +150,8 @@ Circular dependency handling: `-Wl,--start-group` / `-Wl,--end-group` wrapping a
 | `/api/simulate` | POST | Run simulation, return SINR + detection results |
 | `/api/dqn/state` | GET | Get normalized state vector for DQN agent |
 | `/api/dqn/action` | POST | Execute DQN action (power_dbm, jam_freq) |
+| `/api/scene/list` | GET | List all sessions with metadata |
+| `/api/scene/stats` | GET | Get server statistics |
 
 ### WebSocket Protocol
 

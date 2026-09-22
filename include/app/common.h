@@ -12,27 +12,21 @@
 namespace beast = boost::beast;
 namespace http = beast::http;
 
-// 全局状态
 extern ECMSim::SceneManager g_scene_mgr;
 extern std::string g_index_html;
 
-// 字符串工具
-std::string svToString(beast::string_view sv);
+class ws_broadcaster;
+extern ws_broadcaster g_broadcaster;
 
-// JSON 工具
+std::string svToString(beast::string_view sv);
 std::string makeJson(const Json::Value& v);
 std::string jsonOk();
 std::string jsonErr(const std::string& msg);
 Json::Value parseJson(const std::string& str);
-
-// 场景工具
 std::string sceneToJson(const std::string& sid);
 void broadcastScene(const std::string& sid);
-
-// 文件工具
 bool loadFile(const std::string& p, std::string& out);
 
-// 会话资源回收控制器
 class cleanup_controller {
 public:
     cleanup_controller();

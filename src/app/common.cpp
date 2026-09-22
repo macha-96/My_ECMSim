@@ -1,5 +1,5 @@
-#include "common.h"
-#include "ws_session.h"
+#include <app/common.h>
+#include <app/ws_session.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <sstream>
@@ -7,6 +7,7 @@
 // 全局状态定义
 ECMSim::SceneManager g_scene_mgr;
 std::string g_index_html;
+ws_broadcaster g_broadcaster;
 
 // 字符串工具
 std::string svToString(beast::string_view sv) {
@@ -48,7 +49,6 @@ std::string sceneToJson(const std::string& sid) {
 }
 
 void broadcastScene(const std::string& sid) {
-    extern ws_broadcaster g_broadcaster;
     g_broadcaster.broadcast(sid, sceneToJson(sid));
 }
 
@@ -99,7 +99,6 @@ void cleanup_controller::run_cleanup_loop() {
             g_scene_mgr.cleanupStaleSessions(1800);
             size_t after = g_scene_mgr.getSessionCount();
 
-            extern ws_broadcaster g_broadcaster;
             g_broadcaster.cleanupStaleConnections();
 
             spdlog::info("清理完成: 会话 {} → {}, WebSocket连接数: {}", before, after, g_broadcaster.countConnections());

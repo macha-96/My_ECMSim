@@ -104,7 +104,15 @@ target_link_libraries(sim_core PUBLIC
     spdlog::spdlog_header_only
 )
 
-set(APP_HTTP_BEAST ${PROJECT_SOURCE_DIR}/src/app/web_server_beast.cpp)
+set(APP_HTTP_BEAST_SRCS
+    ${PROJECT_SOURCE_DIR}/src/app/web_server_beast.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/common.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/ws_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/http_handlers.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/http_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/grpc_service.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/router.cpp
+)
 
 set(GRPC_LIBS
     ${GRPC_LIB_DIR}/libgrpc++.a
@@ -133,7 +141,7 @@ set(GRPC_LIBS
     ${GRPC_LIB_DIR}/libprotobuf.a
 )
 
-add_executable(ecmsim_http_beast ${APP_HTTP_BEAST})
+add_executable(ecmsim_http_beast ${APP_HTTP_BEAST_SRCS})
 target_link_libraries(ecmsim_http_beast
     PRIVATE
         sim_core
