@@ -55,6 +55,6 @@ grpc::Status AgentSvc::StepSimulation(
         for (double z : r.freq_match_factors) p->add_freq_match_factors(z);
     }
     rp->set_success(true);
-    broadcastScene(rq->session_id());
+    // broadcastScene(rq->session_id());
     return grpc::Status::OK;
 }

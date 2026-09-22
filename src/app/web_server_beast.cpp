@@ -24,6 +24,7 @@ int main(int argc, char* argv[]) {
     spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v");
     spdlog::set_level(spdlog::level::info);
 
+    // 加载前端界面
     const char* staticDir = argc >= 2 ? argv[1] : "static";
     std::string indexPath = std::string(staticDir) + "/index_v2.html";
     if (!loadFile(indexPath, g_index_html)) {
@@ -32,17 +33,20 @@ int main(int argc, char* argv[]) {
     }
     spdlog::info("加载前端页面: {} ({} bytes)", indexPath, g_index_html.size());
 
+    // 初始化路由标
     initRoutes(g_router);
     spdlog::info("路由表已初始化");
     g_router.dump();
 
-    constexpr int num_threads = 4;
+    constexpr int num_threads = 4;          // 4 线程的IO事件循环
     net::io_context ioc{num_threads};
 
+    // 启动web服务器
     tcp::endpoint endpoint{net::ip::make_address("0.0.0.0"), 8080};
     http_server server(ioc, endpoint);
     spdlog::info("HTTP服务器已启动, 端口: 8080");
 
+    // 启动gRPC服务器
     AgentSvc agentSvc;
     grpc::ServerBuilder gb;
     gb.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
@@ -54,6 +58,7 @@ int main(int argc, char* argv[]) {
     }
     spdlog::info("gRPC服务器已启动, 端口: 50051");
 
+    // 启动资源清理进程
     cleanup_controller cleanup;
     cleanup.start();
 
