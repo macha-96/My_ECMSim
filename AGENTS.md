@@ -80,6 +80,7 @@ agents/dqn/
   protos/                — Python protobuf stubs (agent_service_pb2.py)
 protos/                  — gRPC protobuf definitions
 third_party/grpc/        — prebuilt gRPC (install/ with lib/, include/, bin/)
+third_party/spdlog/      — spdlog v1.17.0 (header-only 日志库)
 ```
 
 ## Architecture
@@ -90,6 +91,11 @@ third_party/grpc/        — prebuilt gRPC (install/ with lib/, include/, bin/)
 - dB helpers (`db2lin`, `lin2db`) are inline in `include/algo/math_const.h`.
 - jsoncpp is statically compiled via `src/jsoncpp/jsoncpp.cpp`.
 - Radar constructor takes `Pt_dBm` (dBm, not dBW) — converts internally to linear Watts.
+- **日志框架**: spdlog (header-only)，通过 `#include <spdlog/spdlog.h>` 引入。
+- **日志 API**: `spdlog::info(...)`, `spdlog::error(...)`, `spdlog::warn(...)`, `spdlog::debug(...)`, `spdlog::critical(...)`
+- **日志格式**: `spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v")`，在 `main()` 初始化。
+- **所有新代码必须使用 spdlog**，不再使用 `MySimpleServerLog.h` 的 `LOG_INFO`/`LOG_ERROR` 宏。
+- **fmtlib 格式**: 用 `{}` 占位符，不要用 printf 的 `%s`/`%d`/`%zu`。示例：`spdlog::info("count: {}", n)`。
 
 ## V3 Architecture (HTTP + gRPC + WebSocket)
 

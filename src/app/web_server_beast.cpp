@@ -14,6 +14,7 @@
 #include <jsoncpp/json/json.h>
 #include <grpc_gen/agent_service.grpc.pb.h>
 #include <grpcpp/grpcpp.h>
+#include <spdlog/spdlog.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -71,7 +72,7 @@ public:
         if (running_) return;
         running_ = true;
         cleanup_thread_ = std::thread([this]() { run_cleanup_loop(); });
-        std::cout << "[INFO] 会话资源回收线程已启动 (每5分钟清理一次)\n";
+        spdlog::info("会话资源回收线程已启动 (每5分钟清理一次)");
     }
     
     void stop() {
@@ -80,7 +81,7 @@ public:
         if (cleanup_thread_.joinable()) {
             cleanup_thread_.join();
         }
-        std::cout << "[INFO] 会话资源回收线程已停止\n";
+        spdlog::info("会话资源回收线程已停止");
     }
     
     ~cleanup_controller() {
@@ -98,7 +99,7 @@ private:
             if (!running_) break;
             
             try {
-                std::cout << "[CLEANUP] 开始定期清理...\n";
+                spdlog::info("开始定期清理...");
                 
                 // 清理30分钟未访问的会话
                 size_t before = g_scene_mgr.getSessionCount();
@@ -108,13 +109,10 @@ private:
                 // 清理WebSocket僵尸连接
                 g_broadcaster.cleanupStaleConnections();
                 
-                std::cout << "[CLEANUP] 清理完成: 会话 "
-                          << before << " → " << after 
-                          << ", WebSocket连接数: " << g_broadcaster.countConnections()
-                          << "\n";
+                spdlog::info("清理完成: 会话 {} → {}, WebSocket连接数: {}", before, after, g_broadcaster.countConnections());
                 
             } catch (const std::exception& e) {
-                std::cerr << "[CLEANUP ERROR] " << e.what() << "\n";
+                spdlog::error("清理异常: {}", e.what());
             }
         }
     }
@@ -130,7 +128,7 @@ static cleanup_controller g_cleanup_controller;
 class websocket_session : public std::enable_shared_from_this<websocket_session> {
 public:
     websocket_session(tcp::socket socket, http::request<http::string_body> req, const std::string& sid)
-        : ws_(std::move(socket)), req_(std::move(req)), sid_(sid) {}
+        : ws_(std::move(socket)), req_(std::move(req)), sid_(sid), writing_(false) {}
 
     void start() {
         ws_.async_accept(req_,
@@ -142,20 +140,38 @@ public:
     }
 
     void send(const std::string& msg) {
-        auto buf = std::make_shared<std::string>(msg);
-        ws_.async_write(net::buffer(*buf),
-            [self = shared_from_this(), buf](beast::error_code ec, std::size_t) {
-                if (ec) self->on_close();
+        boost::asio::post(ws_.get_executor(),
+            [self = shared_from_this(), msg]() {
+                self->write_queue_.push_back(msg);
+                if (!self->writing_) {
+                    self->writing_ = true;
+                    self->do_write();
+                }
             });
     }
 
-    // 简化的超时检查（基于连接时间）
     bool is_timed_out() const {
-        // 简单实现：总是返回false，依赖会话级清理
         return false;
     }
 
 private:
+    void do_write() {
+        auto buf = std::make_shared<std::string>(write_queue_.front());
+        ws_.async_write(net::buffer(*buf),
+            [self = shared_from_this(), buf](beast::error_code ec, std::size_t) {
+                if (ec) {
+                    self->on_close();
+                    return;
+                }
+                self->write_queue_.pop_front();
+                if (self->write_queue_.empty()) {
+                    self->writing_ = false;
+                } else {
+                    self->do_write();
+                }
+            });
+    }
+
     void do_read() {
         ws_.async_read(buffer_,
             [self = shared_from_this()](beast::error_code ec, std::size_t) {
@@ -173,6 +189,8 @@ private:
     http::request<http::string_body> req_;
     std::string sid_;
     beast::flat_buffer buffer_;
+    std::deque<std::string> write_queue_;
+    bool writing_;
 };
 
 /* ====== ws_broadcaster 方法实现 ====== */
@@ -756,8 +774,7 @@ std::string routeRequest(const http::request<http::string_body>& req) {
 /* ====== HTTP 会话 ====== */
 class http_session : public std::enable_shared_from_this<http_session> {
 public:
-    http_session(tcp::socket socket)
-        : socket_(std::move(socket)) {}
+    http_session(tcp::socket socket): socket_(std::move(socket)) {}
 
     void start() { do_read(); }
 
@@ -799,13 +816,13 @@ private:
     void process() {
         std::string target = svToString(req_.target());
 
-        if (isWebSocketUpgrade(req_)) {
+        if (isWebSocketUpgrade(req_)) {     // 检测WebSocket协议升级请求
             std::string sid = extractSessionId(target);
             if (!sid.empty()) {
                 // 创建websocket_session实例
-                auto ws = std::make_shared<websocket_session>(
-                    std::move(socket_), std::move(req_), sid);
+                auto ws = std::make_shared<websocket_session>(std::move(socket_), std::move(req_), sid);
                 ws->start();
+                spdlog::info("websocket_session {} has been created!", sid);
             }
             return;
         }
@@ -815,8 +832,7 @@ private:
 
         http::response<http::string_body> res{http::status::ok, req_.version()};
         res.set(http::field::server, "ECMSim-beast");
-        res.set(http::field::content_type,
-                is_html ? "text/html" : "application/json");
+        res.set(http::field::content_type, is_html ? "text/html" : "application/json");
         res.keep_alive(req_.keep_alive());
         res.body() = response_str;
         res.prepare_payload();
@@ -833,17 +849,32 @@ private:
 /* ====== HTTP 服务器 ====== */
 class http_server {
 public:
-    http_server(net::io_context& ioc, tcp::endpoint endpoint)
-        : acceptor_(ioc) {
+    http_server(net::io_context& ioc, tcp::endpoint endpoint): acceptor_(ioc) {
         beast::error_code ec;
         acceptor_.open(endpoint.protocol(), ec);
-        if (ec) { std::cerr << "[ERR] open: " << ec.message() << "\n"; return; }
+        if (ec) { 
+            spdlog::error("打开socket失败: {}", ec.message()); 
+            return; 
+        }
+        
         acceptor_.set_option(net::socket_base::reuse_address(true), ec);
-        if (ec) { std::cerr << "[ERR] set_option: " << ec.message() << "\n"; return; }
+        if (ec) { 
+            spdlog::error("设置socket选项失败: {}", ec.message()); 
+            return; 
+        }
+        
         acceptor_.bind(endpoint, ec);
-        if (ec) { std::cerr << "[ERR] bind: " << ec.message() << "\n"; return; }
+        if (ec) { 
+            spdlog::error("绑定端口失败: {}", ec.message()); 
+            return; 
+        }
+        
         acceptor_.listen(net::socket_base::max_listen_connections, ec);
-        if (ec) { std::cerr << "[ERR] listen: " << ec.message() << "\n"; return; }
+        if (ec) { 
+            spdlog::error("监听端口失败: {}", ec.message()); 
+            return; 
+        }
+
         do_accept();
     }
 
@@ -923,36 +954,42 @@ class AgentSvc final : public ecmsim::AgentService::Service {
 
 /* ====== 主函数 ====== */
 int main(int argc, char* argv[]) {
+    // spdlog 日志初始化
+    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v");
+    spdlog::set_level(spdlog::level::info);
+
     const char* staticDir = argc >= 2 ? argv[1] : "static";
     std::string indexPath = std::string(staticDir) + "/index_v2.html";
     if (!loadFile(indexPath, g_index_html)) {
-        std::cerr << "[ERR] Cannot load " << indexPath << "\n";
+        spdlog::error("无法加载前端页面: {}", indexPath);
         return 1;
     }
-    std::cout << "[INFO] Loaded " << indexPath << " ("
-              << g_index_html.size() << " bytes)\n";
+    spdlog::info("加载前端页面: {} ({} bytes)", indexPath, g_index_html.size());
 
-    constexpr int num_threads = 4;
+    constexpr int num_threads = 4;          // 线程数
     net::io_context ioc{num_threads};
 
+    // 初始化HTTP server，并且绑定io_context事件循环
     tcp::endpoint endpoint{net::ip::make_address("0.0.0.0"), 8080};
     http_server server(ioc, endpoint);
-    std::cout << "[INFO] HTTP :8080\n";
+    spdlog::info("HTTP服务器已启动, 端口: 8080");
 
+    // 启动grpc server
     AgentSvc agentSvc;
     grpc::ServerBuilder gb;
     gb.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
     gb.RegisterService(&agentSvc);
     auto gs = gb.BuildAndStart();
     if (!gs) {
-        std::cerr << "[ERR] gRPC failed\n";
+        spdlog::error("gRPC服务器启动失败");
         return 1;
     }
-    std::cout << "[INFO] gRPC :50051\n";
+    spdlog::info("gRPC服务器已启动, 端口: 50051");
 
     /* 启动资源回收清理线程（每5分钟清理一次闲置会话） */
     g_cleanup_controller.start();
 
+    // 创建线程列表，在子线程内运行事件循环
     std::vector<std::thread> threads;
     threads.reserve(num_threads - 1);
     for (int i = 0; i < num_threads - 1; ++i) {
