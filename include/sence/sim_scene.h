@@ -38,13 +38,25 @@ struct RadarSimResult {
 
 class SimScene {
 public:
-    void addRadar(const Radar& r);
-    void addJammer(const Jammer& j);
+    bool addRadar(const Radar& r);
+    bool removeRadar(int id);
+    bool updateRadar(int id, const Radar& r);
+    const Radar* getRadar(int id) const;
+    std::vector<int> getRadarIds() const;
 
-    // 全场景批量计算所有雷达的SINR（含频域匹配+多维度评估）
+    bool addJammer(const Jammer& j);
+    bool removeJammer(int id);
+    bool updateJammer(int id, const Jammer& j);
+    const Jammer* getJammer(int id) const;
+    std::vector<int> getJammerIds() const;
+
+    bool hasRadars() const { return !m_radars.empty(); }
+    bool hasJammers() const { return !m_jammers.empty(); }
+    void clearAll();
+
     std::vector<RadarSimResult> runOneStep();
 
-    void clearAll();
+    // void clearAll();
 
     // === DQN智能干扰预留接口 ===
     // 获取指定干扰机的标准化状态向量（供Python强化学习框架）
@@ -55,14 +67,14 @@ public:
     double calcJammerReward(int jammer_id) const;
 
     // 场景数据读取（供DQN接口使用）
-    const std::vector<Radar>&  getRadars()  const { return m_radars; }
-    const std::vector<Jammer>& getJammers() const { return m_jammers; }
+    const std::map<int, Radar>&  getRadars()  const { return m_radars; }
+    const std::map<int, Jammer>& getJammers() const { return m_jammers; }
     // 查找指定ID的干扰机（可变引用，供DQN动作执行）
     Jammer* findJammer(int id);
 
 private:
-    std::vector<Radar>  m_radars;
-    std::vector<Jammer> m_jammers;
+    std::map<int, Radar>  m_radars;
+    std::map<int, Jammer> m_jammers;
 };
 
 }

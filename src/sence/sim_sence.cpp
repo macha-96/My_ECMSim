@@ -1,22 +1,69 @@
 #include <sence/sim_scene.h>
 #include <algo/radar_eq.h>
-#include <iostream>
 
 namespace ECMSim {
 
-void SimScene::addRadar(const Radar& r) {
-    m_radars.push_back(r);
+bool SimScene::addRadar(const Radar& r) {
+    m_radars.insert_or_assign(r.getId(), r);
+    return true;
 }
 
-void SimScene::addJammer(const Jammer& j) {
-    m_jammers.push_back(j);
+bool SimScene::removeRadar(int id) {
+    return m_radars.erase(id) > 0;
+}
+
+bool SimScene::updateRadar(int id, const Radar& r) {
+    auto it = m_radars.find(id);
+    if (it == m_radars.end()) return false;
+    it->second = r;
+    return true;
+}
+
+const Radar* SimScene::getRadar(int id) const {
+    auto it = m_radars.find(id);
+    return it != m_radars.end() ? &it->second : nullptr;
+}
+
+std::vector<int> SimScene::getRadarIds() const {
+    std::vector<int> ids;
+    ids.reserve(m_radars.size());
+    for (const auto& [k, v] : m_radars) ids.push_back(k);
+    return ids;
+}
+
+bool SimScene::addJammer(const Jammer& j) {
+    m_jammers.insert_or_assign(j.getId(), j);
+    return true;
+}
+
+bool SimScene::removeJammer(int id) {
+    return m_jammers.erase(id) > 0;
+}
+
+bool SimScene::updateJammer(int id, const Jammer& j) {
+    auto it = m_jammers.find(id);
+    if (it == m_jammers.end()) return false;
+    it->second = j;
+    return true;
+}
+
+const Jammer* SimScene::getJammer(int id) const {
+    auto it = m_jammers.find(id);
+    return it != m_jammers.end() ? &it->second : nullptr;
+}
+
+std::vector<int> SimScene::getJammerIds() const {
+    std::vector<int> ids;
+    ids.reserve(m_jammers.size());
+    for (const auto& [k, v] : m_jammers) ids.push_back(k);
+    return ids;
 }
 
 std::vector<RadarSimResult> SimScene::runOneStep() {
     std::vector<RadarSimResult> res_list;
     double dist_target = 10000.0;
 
-    for (const auto& radar : m_radars) {
+    for (const auto& [radar_id, radar] : m_radars) {
         RadarSimResult res;
         res.radar_id = radar.getId();
         auto [rx, ry] = radar.getPos();
@@ -35,7 +82,7 @@ std::vector<RadarSimResult> SimScene::runOneStep() {
         double max_decept_zeta = 0.0;
         int    decept_jam_id   = -1;
 
-        for (const auto& jam : m_jammers) {
+        for (const auto& [jam_id, jam] : m_jammers) {
             auto [jx, jy] = jam.getPos();
             double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
             double freq_j = jam.getJamFreq();
@@ -120,14 +167,12 @@ std::vector<RadarSimResult> SimScene::runOneStep() {
         int noise_count = 0;
         for (size_t i = 0; i < res.jammer_ids.size(); i++) {
             // Need to check jammer type by finding the jammer
-            for (const auto& jam : m_jammers) {
-                if (jam.getId() == res.jammer_ids[i]) {
-                    if (jam.getJamType() == JamType::NOISE_JAM) {
-                        has_noise_jammer = true;
-                        avg_zeta_noise += res.freq_match_factors[i];
-                        noise_count++;
-                    }
-                    break;
+            auto it = m_jammers.find(res.jammer_ids[i]);
+            if (it != m_jammers.end()) {
+                if (it->second.getJamType() == JamType::NOISE_JAM) {
+                    has_noise_jammer = true;
+                    avg_zeta_noise += res.freq_match_factors[i];
+                    noise_count++;
                 }
             }
         }
@@ -161,20 +206,16 @@ std::vector<double> SimScene::getStateForJammer(int jammer_id) const {
     // 返回原始雷达二维表（扁平化）供Python侧自行计算威胁系数
     // Format: [radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
     std::vector<double> state;
-    const Jammer* jam = nullptr;
-    for (const auto& j : m_jammers) {
-        if (j.getId() == jammer_id) { jam = &j; break; }
-    }
+    const Jammer* jam = getJammer(jammer_id);
     if (!jam) return state;
 
     auto [jx, jy] = jam->getPos();
 
     // radar count
-    int radar_count = (int)m_radars.size();
-    state.push_back(static_cast<double>(radar_count));
+    state.push_back(static_cast<double>(m_radars.size()));
 
     // All radar raw features
-    for (const auto& radar : m_radars) {
+    for (const auto& [rid, radar] : m_radars) {
         auto [rx, ry] = radar.getPos();
         double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
         double delta_f = std::abs(jam->getJamFreq() - radar.getFreq());
@@ -206,26 +247,21 @@ double SimScene::calcJammerReward(int jammer_id) const {
     // R = α·Score - β·Pcost - γ·Δf_norm
     const double alpha = 1.0, beta = 0.5, gamma = 0.3;
 
-    const Jammer* jam = nullptr;
-    for (const auto& j : m_jammers) {
-        if (j.getId() == jammer_id) { jam = &j; break; }
-    }
+    const Jammer* jam = getJammer(jammer_id);
     if (!jam) return 0.0;
 
     double score    = 0.5;  // 暂估
     double Pcost    = jam->getPjLin() / 1000.0;  // 归一化功耗
     double delta_f  = 0.0;
     if (!m_radars.empty()) {
-        delta_f = std::abs(jam->getJamFreq() - m_radars[0].getFreq()) / 10e9;
+        delta_f = std::abs(jam->getJamFreq() - m_radars.begin()->second.getFreq()) / 10e9;
     }
     return alpha * score - beta * Pcost - gamma * delta_f;
 }
 
 Jammer* SimScene::findJammer(int id) {
-    for (auto& j : m_jammers) {
-        if (j.getId() == id) return &j;
-    }
-    return nullptr;
+    auto it = m_jammers.find(id);
+    return it != m_jammers.end() ? &it->second : nullptr;
 }
 
 }

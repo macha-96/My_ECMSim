@@ -50,8 +50,8 @@ bool SceneManager::addRadar(const std::string& sid, const Radar& r) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return false;
-    s->radars.insert_or_assign(r.getId(), r);
-	    s->last_access = static_cast<uint64_t>(std::time(nullptr));
+    s->scene.addRadar(r);
+    s->last_access = static_cast<uint64_t>(std::time(nullptr));
     return true;
 }
 
@@ -60,43 +60,38 @@ bool SceneManager::removeRadar(const std::string& sid, int id) {
     auto* s = getSession(sid);
     if (!s) return false;
     s->last_access = static_cast<uint64_t>(std::time(nullptr));
-    return s->radars.erase(id) > 0;
+    return s->scene.removeRadar(id);
 }
 
 bool SceneManager::updateRadar(const std::string& sid, int id, const Radar& r) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return false;
-    auto it = s->radars.find(id);
-    if (it == s->radars.end()) return false;
-    it->second = r;
-    s->last_access = static_cast<uint64_t>(std::time(nullptr));
-    return true;
+    bool ok = s->scene.updateRadar(id, r);
+    if (ok) s->last_access = static_cast<uint64_t>(std::time(nullptr));
+    return ok;
 }
 
 const Radar* SceneManager::getRadar(const std::string& sid, int id) const {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return nullptr;
-    auto it = s->radars.find(id);
-    return it != s->radars.end() ? &it->second : nullptr;
+    return s->scene.getRadar(id);
 }
 
 std::vector<int> SceneManager::getRadarIds(const std::string& sid) const {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return {};
-    std::vector<int> ids;
-    for (const auto& [k, v] : s->radars) ids.push_back(k);
-    return ids;
+    return s->scene.getRadarIds();
 }
 
 bool SceneManager::addJammer(const std::string& sid, const Jammer& j) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return false;
-    s->jammers.insert_or_assign(j.getId(), j);
-	    s->last_access = static_cast<uint64_t>(std::time(nullptr));
+    s->scene.addJammer(j);
+    s->last_access = static_cast<uint64_t>(std::time(nullptr));
     return true;
 }
 
@@ -105,97 +100,53 @@ bool SceneManager::removeJammer(const std::string& sid, int id) {
     auto* s = getSession(sid);
     if (!s) return false;
     s->last_access = static_cast<uint64_t>(std::time(nullptr));
-    return s->jammers.erase(id) > 0;
+    return s->scene.removeJammer(id);
 }
 
 bool SceneManager::updateJammer(const std::string& sid, int id, const Jammer& j) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return false;
-    auto it = s->jammers.find(id);
-    if (it == s->jammers.end()) return false;
-    it->second = j;
-    s->last_access = static_cast<uint64_t>(std::time(nullptr));
-    return true;
+    bool ok = s->scene.updateJammer(id, j);
+    if (ok) s->last_access = static_cast<uint64_t>(std::time(nullptr));
+    return ok;
 }
 
 const Jammer* SceneManager::getJammer(const std::string& sid, int id) const {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return nullptr;
-    auto it = s->jammers.find(id);
-    return it != s->jammers.end() ? &it->second : nullptr;
+    return s->scene.getJammer(id);
 }
 
 std::vector<int> SceneManager::getJammerIds(const std::string& sid) const {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return {};
-    std::vector<int> ids;
-    for (const auto& [k, v] : s->jammers) ids.push_back(k);
-    return ids;
+    return s->scene.getJammerIds();
 }
 
 std::vector<RadarSimResult> SceneManager::runSimulation(const std::string& sid) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
-    if (!s || s->radars.empty()) return {};
-
-    SimScene scene;
-    for (const auto& [id, r] : s->radars) scene.addRadar(r);
-    for (const auto& [id, j] : s->jammers) scene.addJammer(j);
-
+    if (!s || !s->scene.hasRadars()) return {};
     s->last_access = static_cast<uint64_t>(std::time(nullptr));
-    return scene.runOneStep();
+    return s->scene.runOneStep();
 }
 
-// DQN: return raw radar 2D table as flat vector for Python-side threat computation
-// Format: [radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
 std::vector<double> SceneManager::getStateForJammer(const std::string& sid, int jammer_id) const {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return {};
-
-    auto jt = s->jammers.find(jammer_id);
-    if (jt == s->jammers.end()) return {};
-
-    const Jammer& jam = jt->second;
-    auto [jx, jy] = jam.getPos();
-    std::vector<double> state;
-
-    // radar count as first element
-    int radar_count = (int)s->radars.size();
-    state.push_back(static_cast<double>(radar_count));
-
-    // All radar features (raw, unaggregated)
-    for (const auto& [rid, radar] : s->radars) {
-        auto [rx, ry] = radar.getPos();
-        double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
-        double delta_f = std::abs(jam.getJamFreq() - radar.getFreq());
-        state.push_back(rx / 20000.0);
-        state.push_back(ry / 20000.0);
-        state.push_back(radar.getFreq() / 20e9);
-        state.push_back(radar.getBandwidth() / 10e6);
-        state.push_back(radar.getPtLin() / 1000.0);
-        state.push_back(dist / 30000.0);
-        state.push_back(delta_f / 10e9);
-    }
-
-    // Jammer state
-    state.push_back(jam.getPjLin() / 1000.0);
-    state.push_back(jam.getJamFreq() / 20e9);
-    return state;
+    return s->scene.getStateForJammer(jammer_id);
 }
 
 bool SceneManager::executeJammerAction(const std::string& sid, int jammer_id, double power_dbm, double freq) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
     if (!s) return false;
-    auto it = s->jammers.find(jammer_id);
-    if (it == s->jammers.end()) return false;
-    double power_lin = db2lin(power_dbm) * 1e-3;
-    it->second.setJamPowerDBm(power_dbm);
-    it->second.setJamFreq(freq);
+    if (!s->scene.getJammer(jammer_id)) return false;
+    s->scene.executeJammerAction(jammer_id, power_dbm, freq);
     s->last_access = static_cast<uint64_t>(std::time(nullptr));
     return true;
 }
@@ -207,7 +158,7 @@ std::string SceneManager::getSceneJson(const std::string& sid) const {
 
     Json::Value root;
     Json::Value radars(Json::arrayValue);
-    for (const auto& [id, r] : s->radars) {
+    for (const auto& [id, r] : s->scene.getRadars()) {
         Json::Value item;
         item["id"] = r.getId();
         item["x"] = r.getPos().first;
@@ -223,7 +174,7 @@ std::string SceneManager::getSceneJson(const std::string& sid) const {
     root["radars"] = radars;
 
     Json::Value jammers(Json::arrayValue);
-    for (const auto& [id, j] : s->jammers) {
+    for (const auto& [id, j] : s->scene.getJammers()) {
         Json::Value item;
         item["id"] = j.getId();
         item["x"] = j.getPos().first;
@@ -249,8 +200,7 @@ bool SceneManager::loadSceneFromJson(const std::string& sid, const std::string& 
     auto* s = getSession(sid);
     if (!s) return false;
 
-    s->radars.clear();
-    s->jammers.clear();
+    s->scene.clearAll();
 
     for (const auto& r : root["radars"]) {
         Radar rad(
@@ -264,7 +214,7 @@ bool SceneManager::loadSceneFromJson(const std::string& sid, const std::string& 
             r["sigma"].asDouble(),
             r["thresh_db"].asDouble()
         );
-        s->radars.insert_or_assign(rad.getId(), rad);
+        s->scene.addRadar(rad);
     }
     for (const auto& j : root["jammers"]) {
         JamType jt = j["jam_type"].asString() == "NOISE_JAM" ? JamType::NOISE_JAM : JamType::RANGE_DECEPT;
@@ -277,7 +227,7 @@ bool SceneManager::loadSceneFromJson(const std::string& sid, const std::string& 
             j["jam_freq"].asDouble(),
             jt
         );
-        s->jammers.insert_or_assign(jam.getId(), jam);
+        s->scene.addJammer(jam);
     }
     s->last_access = static_cast<uint64_t>(std::time(nullptr));
     return true;
@@ -319,7 +269,7 @@ size_t SceneManager::getTotalRadarCount() const {
     std::lock_guard<std::mutex> lock(m_mtx);
     size_t total = 0;
     for (const auto& [sid, data] : m_sessions) {
-        total += data->radars.size();
+        total += data->scene.getRadars().size();
     }
     return total;
 }
@@ -328,7 +278,7 @@ size_t SceneManager::getTotalJammerCount() const {
     std::lock_guard<std::mutex> lock(m_mtx);
     size_t total = 0;
     for (const auto& [sid, data] : m_sessions) {
-        total += data->jammers.size();
+        total += data->scene.getJammers().size();
     }
     return total;
 }

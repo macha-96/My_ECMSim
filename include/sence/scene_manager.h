@@ -12,8 +12,7 @@
 namespace ECMSim {
 
 struct SessionData {
-    std::map<int, Radar> radars;
-    std::map<int, Jammer> jammers;
+    SimScene scene;
     uint64_t created_at = 0;
     uint64_t last_access = 0;
 };
