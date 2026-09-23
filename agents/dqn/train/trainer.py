@@ -100,31 +100,30 @@ class DQNTrainer:
                 self.randomize_radar()
             # 新增：episode态势重置
             self.client.reset()
-            state = self.client.get_state(self.jammer_id)
         except Exception as e:
-            logging.warning(f"get_state failed: {e}")
+            logging.warning(f"reset failed: {e}")
             return -10.0, {}
-        state_np = np.array(state, dtype=np.float32)
+        state_raw = self.client.get_state(self.jammer_id)
+        state_np = self.agent.parse_state(state_raw)
         total_reward = 0.0
         step = 0
         step_log = []
         while step < 50:
-            # Extract aggregated radar params from state
-            # indices 0-3: weighted avg spatial/power; 4-6: most threatening radar's freq/bw/delta_f
-            actual_radar_freq = state[4] * 20e9
-            actual_radar_bw   = state[5] * 10e6
-            act_idx = self.agent.choose_action(state_np)
+            act_idx = self.agent.choose_action(state_raw)
+            # For action mapping, use first radar's freq/bw from raw state
+            actual_radar_freq = state_raw[1 + 2] * 20e9
+            actual_radar_bw   = state_raw[1 + 3] * 10e6
             power_dbm, jam_freq = self.index_to_action_with_freq(act_idx, actual_radar_freq, actual_radar_bw)
             freq_shift_khz = (jam_freq - actual_radar_freq) / 1e3
             try:
                 self.client.execute_action(self.jammer_id, power_dbm, jam_freq)
                 results = self.client.step_simulation()
                 reward  = self.compute_reward(list(results), power_dbm)
-                next_state = self.client.get_state(self.jammer_id)
+                next_raw = self.client.get_state(self.jammer_id)
             except Exception as e:
                 logging.warning(f"gRPC step {step} failed: {e}")
                 return total_reward - 5.0, step_log
-            next_np = np.array(next_state, dtype=np.float32)
+            next_np = self.agent.parse_state(next_raw)
 
             # Collect per-step stats
             sinr_db = results[0].sinr_db if results else -999
@@ -150,6 +149,7 @@ class DQNTrainer:
             self.agent.buffer.push(state_np, act_idx, reward, next_np, False)
             self.agent.update()
             state_np = next_np
+            state_raw = next_raw
             total_reward += reward
             step += 1
         return total_reward, step_log

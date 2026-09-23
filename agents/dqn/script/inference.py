@@ -71,22 +71,21 @@ def main():
         for step in range(1, args.steps + 1):
             logging.info(f"\n--- Step {step}/{args.steps} ---")
 
-            # 1. Get state (threat-weighted aggregated, fixed 9-dim)
+            # 1. Get state (raw radar 2D table from C++)
             state = client.get_state(args.jammer_id)
-            logging.info(f"  state ({len(state)}): {[round(v, 3) for v in state]}")
-
-            # Extract aggregated radar params from state
-            # indices 0-3: weighted avg spatial/power; 4-6: most threatening radar's freq/bw/delta_f
-            actual_radar_freq = state[4] * 20e9
-            actual_radar_bw   = state[5] * 10e6
+            logging.info(f"  state ({len(state)} dims): {[round(v, 3) for v in state]}")
 
             # 2. Choose action
             if agent:
-                state_np = np.array(state, dtype=np.float32)
+                state_np = np.array(state, dtype=np.float64)
                 act = agent.choose_action(state_np)
+                # For action mapping, use first radar's freq/bw from raw state
+                actual_radar_freq = state[1 + 2] * 20e9
+                actual_radar_bw   = state[1 + 3] * 10e6
                 power_dbm, jam_freq = index_to_action(act, actual_radar_freq, actual_radar_bw, cfg)
                 logging.info(f"  DQN act {act}: {power_dbm:.0f}dBm {jam_freq/1e9:.3f}GHz")
             else:
+                actual_radar_freq = state[1 + 2] * 20e9
                 act, power_dbm, jam_freq = 0, 0.0, actual_radar_freq
                 logging.info(f"  no model — skip action")
 

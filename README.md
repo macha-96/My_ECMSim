@@ -417,6 +417,54 @@ ECMSim/
 
 ---
 
+## DQN 智能体（多雷达架构）
+
+### 数据流
+
+```
+Python 智能体 → gRPC GetState → C++ SceneManager.getStateForJammer()
+                                    ↓
+                            返回原始雷达二维表:
+                            [radar_count, radar1[7], ..., jammer[2]]
+                                    ↓
+                          DQNJammerAgent.parse_state()
+                                    ↓
+                          自行计算威胁权重 w_i = 1/(dist_i+1)
+                          聚合为 9 维向量
+                                    ↓
+                          QNetwork → 动作 (power_dbm, jam_freq)
+                                    ↓
+                          gRPC ExecuteAction → 干扰机更新
+```
+
+### 核心设计
+
+- **C++ 只提供原始数据**：`getStateForJammer` 返回所有雷达的原始参数，不做任何聚合
+- **Python 智能体自行决策**：每个智能体独立计算威胁权重，可自定义威胁计算逻辑（基于雷达类型、RCS 等）
+- **模型结构不变**：QNetwork 的 `state_dim=9` 和 `action_dim=21` 与单雷达场景一致
+
+### 状态向量格式
+
+C++ 返回的原始状态：
+```
+[radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
+```
+
+Python 聚合后的 9 维向量：
+```
+[avg_rx, avg_ry, avg_pt, avg_dist, max_threat_freq, max_threat_bw, max_threat_delta_f, jammer_pj, jammer_freq]
+```
+
+### 运行
+
+```bash
+# 训练
+python agents/dqn/script/train_agent.py --episodes=2000
+
+# 推理
+python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 --model=weights/dqn_jammer_final.pth --steps=5
+```
+
 ## 日志规范
 
 项目使用 **spdlog** 作为日志框架，所有新代码必须使用 spdlog。

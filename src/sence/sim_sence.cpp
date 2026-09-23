@@ -158,8 +158,8 @@ void SimScene::clearAll() {
 // ========== DQN预留接口 ==========
 
 std::vector<double> SimScene::getStateForJammer(int jammer_id) const {
-    // 威胁加权聚合状态向量：固定9维
-    // 空间/功率用加权平均，频率特征用威胁最大雷达的值实现直接瞄频
+    // 返回原始雷达二维表（扁平化）供Python侧自行计算威胁系数
+    // Format: [radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
     std::vector<double> state;
     const Jammer* jam = nullptr;
     for (const auto& j : m_jammers) {
@@ -169,48 +169,25 @@ std::vector<double> SimScene::getStateForJammer(int jammer_id) const {
 
     auto [jx, jy] = jam->getPos();
 
-    double w_sum = 0.0;
-    double max_w = 0.0;
-    double max_freq = 0, max_bw = 0, max_delta_f = 0;
-    double sum_rx = 0, sum_ry = 0, sum_pt = 0, sum_dist = 0;
+    // radar count
+    int radar_count = (int)m_radars.size();
+    state.push_back(static_cast<double>(radar_count));
 
+    // All radar raw features
     for (const auto& radar : m_radars) {
         auto [rx, ry] = radar.getPos();
         double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
         double delta_f = std::abs(jam->getJamFreq() - radar.getFreq());
-        double w = 1.0 / (dist + 1.0);
-
-        sum_rx    += rx * w;
-        sum_ry    += ry * w;
-        sum_pt    += radar.getPtLin() * w;
-        sum_dist  += dist * w;
-        w_sum     += w;
-
-        if (w > max_w) {
-            max_w     = w;
-            max_freq   = radar.getFreq();
-            max_bw     = radar.getBandwidth();
-            max_delta_f = delta_f;
-        }
+        state.push_back(rx / 20000.0);
+        state.push_back(ry / 20000.0);
+        state.push_back(radar.getFreq() / 20e9);
+        state.push_back(radar.getBandwidth() / 10e6);
+        state.push_back(radar.getPtLin() / 1000.0);
+        state.push_back(dist / 30000.0);
+        state.push_back(delta_f / 10e9);
     }
 
-    if (w_sum > 0.0) {
-        state.push_back(sum_rx  / w_sum / 20000.0);
-        state.push_back(sum_ry  / w_sum / 20000.0);
-        state.push_back(sum_pt  / w_sum / 1000.0);
-        state.push_back(sum_dist / w_sum / 30000.0);
-    } else {
-        state.push_back(0.0);
-        state.push_back(0.0);
-        state.push_back(0.0);
-        state.push_back(0.0);
-    }
-
-    // 频率特征：威胁最大雷达的频率（直接瞄频）
-    state.push_back(max_freq  / 20e9);
-    state.push_back(max_bw    / 10e6);
-    state.push_back(max_delta_f / 10e9);
-
+    // Jammer state
     state.push_back(jam->getPjLin() / 1000.0);
     state.push_back(jam->getJamFreq() / 20e9);
 

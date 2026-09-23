@@ -77,11 +77,11 @@ agents/dqn/
     train_agent.py       — DQN training entry point
     inference.py         — DQN inference entry point
     config.yaml          — training hyperparameters + scene config
-  core/
-    dqn_agent.py         — DQNJammerAgent (ε-greedy, target network)
-    buffer.py            — ReplayBuffer
-  model/
-    q_network.py         — QNetwork (PyTorch)
+   core/
+     dqn_agent.py         — DQNJammerAgent (parse_state + ε-greedy, target network)
+     buffer.py            — ReplayBuffer
+   model/
+     q_network.py         — QNetwork (PyTorch, state_dim=9, action_dim=21)
   train/
     trainer.py           — DQNTrainer
   utils/
@@ -191,11 +191,35 @@ HTTP, gRPC, and WebSocket servers share one SceneManager instance via mutex. Eve
 
 ```
 Frontend/Python → HTTP/gRPC → SceneManager modify data
-                                    ↓
-                               broadcastScene()
-                                    ↓
-                               WebSocket push to session's frontend
+                                     ↓
+                                broadcastScene()
+                                     ↓
+                                WebSocket push to session's frontend
 ```
+
+### DQN Data Flow (Multi-Radar)
+
+```
+Python agent → gRPC GetState → SceneManager.getStateForJammer()
+                                    ↓
+                            returns raw radar 2D table:
+                            [radar_count, radar1[7], ..., jammer[2]]
+                                    ↓
+                          Python DQNJammerAgent.parse_state()
+                                    ↓
+                          Computes threat weights w_i = 1/(dist_i+1)
+                          Aggregates to 9-dim vector
+                                    ↓
+                          QNetwork(state_dim=9) → action (power_dbm, jam_freq)
+                                    ↓
+                          gRPC ExecuteAction → Jammer updated
+                                    ↓
+                          gRPC StepSimulation → SINR + detection results
+                                    ↓
+                          Python compute_reward() → training signal
+```
+
+HTTP, gRPC, and WebSocket servers share one SceneManager instance via mutex. Every mutation calls `broadcastScene()` to push updates to WebSocket clients.
 
 ## DQN Agent
 
@@ -229,13 +253,36 @@ Model saved to `agents/dqn/weights/` (e.g. `dqn_jammer_final.pth`).
 python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 --model=weights/dqn_jammer_final.pth --steps=5
 ```
 
+### Multi-Radar Architecture
+
+在多雷达场景下，C++ 与 Python 的职责分工如下：
+
+**C++ 侧**（`scene_manager.cpp` / `sim_sence.cpp`）：`getStateForJammer` 返回原始雷达二维表（扁平化），不做任何聚合计算。
+
+状态向量格式：`[radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]`
+- `radar_count`：场景中雷达数量
+- 每个雷达 7 个归一化特征：位置(rx/20000, ry/20000)、频率(freq/20e9)、带宽(bw/10e6)、功率(pt/1000)、距离(dist/30000)、频差(delta_f/10e9)
+- 干扰机 2 个特征：功率(pj/1000)、频率(freq/20e9)
+
+**Python 侧**（`agents/dqn/core/dqn_agent.py`）：`DQNJammerAgent.parse_state()` 解析原始雷达表，自行计算威胁加权。
+
+1. 解析 `radar_count` 和每个雷达的 7 维特征
+2. 计算威胁权重 `w_i = 1/(dist_i + 1)`（距离越近威胁越大）
+3. 聚合为固定 9 维向量送入 QNetwork：
+   - `[0-3]`：空间/功率的加权平均
+   - `[4-6]`：威胁最大雷达的频率、带宽、频差
+   - `[7-8]`：干扰机自身功率和频率
+
+**优势**：每个智能体可以自定义威胁计算逻辑（如基于雷达类型、RCS 等），无需修改 C++ 代码或 QNetwork 结构。QNetwork 的 `state_dim=9` 和 `action_dim=21` 保持不变。
+
 ### Agent Communication Flow
 
-1. `GetState` — receives normalized state vector (positions, frequencies, distances)
-2. `ExecuteAction` — sets jammer power (dBm) and frequency (Hz)
-3. `StepSimulation` — runs one simulation step, returns SINR/detection results
+1. `GetState` — receives raw radar 2D table (radar_count + all radar features)
+2. `parse_state()` — Python agent computes threat weights → 9-dim vector
+3. `ExecuteAction` — sets jammer power (dBm) and frequency (Hz)
+4. `StepSimulation` — runs one simulation step, returns SINR/detection results
 
-Reward calculation is done entirely in Python (not on the C++ server). The C++ server only provides state/action/simulation primitives.
+Reward calculation is done entirely in Python (not on the C++ server). The C++ server only provides raw scene data, action execution, and simulation primitives.
 
 ### DQN Client (`client.py`)
 

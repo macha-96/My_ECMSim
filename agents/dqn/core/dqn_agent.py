@@ -26,7 +26,61 @@ class DQNJammerAgent:
         self.target_step = cfg["target_update_step"]
         self.step_count = 0
 
-    def choose_action(self, state_np):
+    def parse_state(self, raw_state):
+        """Parse raw flat radar table from C++ into threat-weighted 9-dim vector.
+
+        raw_state format: [radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
+        Returns: np.array of shape (9,) — threat-weighted aggregated features
+        """
+        radar_count = int(raw_state[0])
+        offset = 1
+        radar_features = []
+        for i in range(radar_count):
+            feat = raw_state[offset:offset+7]
+            radar_features.append(feat)
+            offset += 7
+        jammer_pj = raw_state[offset]
+        jammer_freq = raw_state[offset + 1]
+
+        radar_features = np.array(radar_features, dtype=np.float64)  # (N, 7)
+
+        if radar_count == 0:
+            return np.zeros(9, dtype=np.float32)
+
+        # Threat weight: inverse distance (state indices: 5=dist/30000)
+        dists = radar_features[:, 5]  # normalized dist / 30000 → real dist = dist*30000
+        threats = 1.0 / (dists * 30000.0 + 1.0)
+        w_sum = threats.sum()
+
+        if w_sum > 0.0:
+            weights = threats / w_sum  # (N,)
+            # Weighted average of spatial/power features
+            avg_rx   = float(np.sum(radar_features[:, 0] * weights))
+            avg_ry   = float(np.sum(radar_features[:, 1] * weights))
+            avg_pt   = float(np.sum(radar_features[:, 4] * weights))
+            avg_dist = float(np.sum(radar_features[:, 5] * weights))
+
+            # Frequency features from the most threatening radar
+            max_idx = int(np.argmax(threats))
+            max_freq   = float(radar_features[max_idx, 2])
+            max_bw     = float(radar_features[max_idx, 3])
+            max_delta_f = float(radar_features[max_idx, 6])
+        else:
+            avg_rx = avg_ry = avg_pt = avg_dist = 0.0
+            max_freq = max_bw = max_delta_f = 0.0
+
+        return np.array([
+            avg_rx, avg_ry, avg_pt, avg_dist,
+            max_freq, max_bw, max_delta_f,
+            jammer_pj, jammer_freq
+        ], dtype=np.float32)
+
+    def choose_action(self, state_raw):
+        # Parse raw radar table into threat-weighted 9-dim vector
+        if isinstance(state_raw, (list, np.ndarray)):
+            state_np = self.parse_state(state_raw)
+        else:
+            state_np = state_raw
         # ε-greedy
         self.step_count += 1
         self.epsilon = max(self.epsilon_end, self.epsilon - 1 / self.epsilon_decay)
