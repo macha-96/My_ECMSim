@@ -2,9 +2,11 @@
 """DQN Agent gRPC client — connects to C++ web_serv_v2 gRPC server."""
 
 import grpc
+import logging
 from protos import agent_service_pb2
 from protos import agent_service_pb2_grpc
 
+logging.basicConfig(level = logging.DEBUG)
 
 class ECMSimClient:
     def __init__(self, target: str = "localhost:50051"):
@@ -62,13 +64,13 @@ if __name__ == "__main__":
     client.session_id = sid
 
     state = client.get_state(1)
-    print(f"State (dim={len(state)}): {[round(v, 3) for v in state]}")
+    logging.info(f"State (dim={len(state)}): {[round(v, 3) for v in state]}")
 
     client.execute_action(1, 45.0, 10.5e9)
-    print("Action executed: power=45dBm, freq=10.5GHz")
+    logging.info("Action executed: power=45dBm, freq=10.5GHz")
 
     results = client.step_simulation()
     for r in results:
-        print(f"R{r.radar_id}: SINR={r.sinr_db:.1f}dB detect={r.detect_success}")
+        logging.info(f"R{r.radar_id}: SINR={r.sinr_db:.1f}dB detect={r.detect_success}")
 
     client.close()

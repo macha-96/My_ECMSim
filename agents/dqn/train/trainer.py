@@ -1,5 +1,6 @@
-import sys, os, time, numpy as np, requests, yaml, random
+import sys, os, time, numpy as np, requests, yaml, random, logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+logging.basicConfig(level = logging.DEBUG)
 from client import ECMSimClient
 from core.dqn_agent import DQNJammerAgent
 from utils.common import mkdir_if_not_exist
@@ -108,7 +109,7 @@ class DQNTrainer:
             self.client.reset()
             state = self.client.get_state(self.jammer_id)
         except Exception as e:
-            print(f"[WARN] get_state failed: {e}")
+            logging.warning(f"get_state failed: {e}")
             return -10.0, {}
         state_np = np.array(state, dtype=np.float32)
         total_reward = 0.0
@@ -126,7 +127,7 @@ class DQNTrainer:
                 reward  = self.compute_reward(list(results), power_dbm)
                 next_state = self.client.get_state(self.jammer_id)
             except Exception as e:
-                print(f"[WARN] gRPC step {step} failed: {e}")
+                logging.warning(f"gRPC step {step} failed: {e}")
                 return total_reward - 5.0, step_log
             next_np = np.array(next_state, dtype=np.float32)
 

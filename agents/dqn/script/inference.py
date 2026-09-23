@@ -15,6 +15,9 @@ sys.path.insert(0, _PROJ_DIR)
 from client import ECMSimClient
 from core.dqn_agent import DQNJammerAgent
 from utils.common import mkdir_if_not_exist
+import logging
+
+logging.basicConfig(level = logging.DEBUG)
 
 def load_config(path=None):
     import yaml
@@ -57,7 +60,7 @@ def main():
     # Connect via gRPC
     client = ECMSimClient(args.grpc_target)
     client.session_id = args.session_id
-    print(f"[INFO] session={args.session_id} jammer={args.jammer_id}")
+    logging.info(f"session={args.session_id} jammer={args.jammer_id}")
 
     # Load trained model if given
     agent = None
@@ -65,15 +68,15 @@ def main():
         agent = DQNJammerAgent(cfg)
         agent.load_model(args.model)
         agent.epsilon = 0.0
-        print(f"[INFO] model loaded: {args.model}")
+        logging.info(f"model loaded: {args.model}")
 
     try:
         for step in range(1, args.steps + 1):
-            print(f"\n--- Step {step}/{args.steps} ---")
+            logging.info(f"\n--- Step {step}/{args.steps} ---")
 
             # 1. Get state
             state = client.get_state(args.jammer_id)
-            print(f"  state ({len(state)}): {[round(v, 3) for v in state]}")
+            logging.info(f"  state ({len(state)}): {[round(v, 3) for v in state]}")
 
             # Extract actual radar freq from state (index 2: radar_freq / 20e9)
             actual_radar_freq = state[2] * 20e9
@@ -83,33 +86,33 @@ def main():
                 state_np = np.array(state, dtype=np.float32)
                 act = agent.choose_action(state_np)
                 power_dbm, jam_freq = index_to_action(act, actual_radar_freq, radar_bw, cfg)
-                print(f"  DQN act {act}: {power_dbm:.0f}dBm {jam_freq/1e9:.3f}GHz")
+                logging.info(f"  DQN act {act}: {power_dbm:.0f}dBm {jam_freq/1e9:.3f}GHz")
             else:
                 act, power_dbm, jam_freq = 0, 0.0, actual_radar_freq
-                print(f"  no model — skip action")
+                logging.info(f"  no model — skip action")
 
             # 3. Execute action
             client.execute_action(args.jammer_id, power_dbm, jam_freq)
-            print(f"  exec: P={power_dbm:.0f}dBm f={jam_freq/1e9:.3f}GHz")
+            logging.info(f"  exec: P={power_dbm:.0f}dBm f={jam_freq/1e9:.3f}GHz")
 
             # 4. Step simulation
             results = client.step_simulation()
             for r in results:
                 z = (sum(r.freq_match_factors) / max(len(r.freq_match_factors), 1)
                      if r.freq_match_factors else 0)
-                print(f"  R{r.radar_id}: SINR={r.sinr_db:.1f}dB "
-                      f"detect={r.detect_success} "
-                      f"score={r.jam_success_score:.3f} ζ={z:.3f}")
+                logging.info(f"  R{r.radar_id}: SINR={r.sinr_db:.1f}dB "
+                            f"detect={r.detect_success} "
+                            f"score={r.jam_success_score:.3f} ζ={z:.3f}")
 
             time.sleep(args.interval)
 
     except KeyboardInterrupt:
-        print("\n[INFO] interrupted")
+        logging.info("\ninterrupted")
     except Exception as e:
-        print(f"[ERROR] {e}")
+        logging.error(f"[ERROR] {e}")
     finally:
         client.close()
-        print("[INFO] done")
+        logging.info("[INFO] done")
 
 if __name__ == "__main__":
     main()

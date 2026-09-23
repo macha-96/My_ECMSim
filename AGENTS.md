@@ -102,7 +102,7 @@ third_party/spdlog/      — spdlog v1.17.0 (header-only 日志库)
 - dB helpers (`db2lin`, `lin2db`) are inline in `include/algo/math_const.h`.
 - jsoncpp is statically compiled via `src/jsoncpp/jsoncpp.cpp`.
 - Radar constructor takes `Pt_dBm` (dBm, not dBW) — converts internally to linear Watts.
-- **日志框架**: spdlog (header-only)，通过 `#include <spdlog/spdlog.h>` 引入。
+- **日志框架**: spdlog (header-only)，通过 `#include <spdlog/spdlog.h>` 引入。python智能体部分的日志使用logging框架
 - **日志 API**: `spdlog::info(...)`, `spdlog::error(...)`, `spdlog::warn(...)`, `spdlog::debug(...)`, `spdlog::critical(...)`
 - **日志格式**: `spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v")`，在 `main()` 初始化。
 - **所有新代码必须使用 spdlog**，不再使用 `MySimpleServerLog.h` 的 `LOG_INFO`/`LOG_ERROR` 宏。
@@ -202,7 +202,15 @@ Frontend/Python → HTTP/gRPC → SceneManager modify data
 Python venv required before running any agent:
 ```bash
 source .venv/bin/activate
-uv pip install websocket-client   # for WS tests
+# uv pip install websocket-client   # for WS tests
+```
+你如果要给虚拟环境安装依赖的话，优先使用：
+```bash
+uv add <依赖包的名字>
+```
+如果不行，再试一下：
+```bash
+uv pip install <依赖包的名字>
 ```
 
 ### Training

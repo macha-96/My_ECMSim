@@ -6,6 +6,7 @@ Usage:
   python3 script/train.py --radar-id=1 --jammer-id=1 --http-target=http://localhost:8080
 """
 import sys, os, time, argparse, requests, yaml, numpy as np
+import logging
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJ_DIR = os.path.dirname(_SCRIPT_DIR)
@@ -35,17 +36,17 @@ def setup_scene(cfg, http_target, grpc_target, max_retries=3):
                 rr = requests.post(f"{http_target}/api/radars",
                     json={"session_id": sid, "radar": rc}, timeout=10)
                 if not rr.json().get("success"):
-                    print(f"[WARN] radar R{rc['id']} failed: {rr.text}")
+                    logging.warning(f"radar R{rc['id']} failed: {rr.text}")
             for jc in cfg["scene_jammers"]:
                 rr = requests.post(f"{http_target}/api/jammers",
                     json={"session_id": sid, "jammer": jc}, timeout=10)
                 if not rr.json().get("success"):
-                    print(f"[WARN] jammer J{jc['id']} failed: {rr.text}")
+                    logging.warning(f"jammer J{jc['id']} failed: {rr.text}")
             c = ECMSimClient(grpc_target)
             c.session_id = sid
             return c
         except (requests.ConnectionError, RuntimeError, TimeoutError) as e:
-            print(f"[WARN] setup attempt {attempt+1}/{max_retries}: {e}")
+            logging.warning(f"setup attempt {attempt+1}/{max_retries}: {e}")
             if attempt < max_retries - 1:
                 time.sleep(3)
             else:
@@ -89,28 +90,28 @@ def main():
         cfg["max_train_episode"] = args.episodes
 
     http_t, grpc_t = cfg["http_target"], cfg["grpc_target"]
-    print(f"[INFO] http={http_t} grpc={grpc_t}")
-    print(f"[INFO] radar_id={args.radar_id} jammer_id={args.jammer_id} "
+    logging.info(f"http={http_t} grpc={grpc_t}")
+    logging.info(f"radar_id={args.radar_id} jammer_id={args.jammer_id} "
           f"episodes={cfg['max_train_episode']}")
 
     if not wait_for_backend(http_t):
-        print("[ERROR] backend not ready after 60s")
+        logging.error("backend not ready after 60s")
         sys.exit(1)
-    print("[INFO] backend ready")
+    logging.info("backend ready")
 
     if args.session_id:
         # 使用已有会话 — 不创建新场景，直接连接
         sid = args.session_id
-        print(f"[INFO] using existing session: {sid}")
+        logging.info(f"using existing session: {sid}")
         client = ECMSimClient(grpc_t)
         client.session_id = sid
     else:
         # 创建新会话 + 添加雷达/干扰机
-        print("[INFO] creating new session with radars and jammers")
+        logging.info("creating new session with radars and jammers")
         try:
             client = setup_scene(cfg, http_t, grpc_t)
         except Exception as e:
-            print(f"[ERROR] setup failed: {e}")
+            logging.error(f"setup failed: {e}")
             sys.exit(1)
 
     trainer = DQNTrainer(cfg, client, args.radar_id, args.jammer_id)
@@ -118,9 +119,9 @@ def main():
     try:
         trainer.train()
     except (requests.ConnectionError, RuntimeError) as e:
-        print(f"[ERROR] training failed: {e}")
+        logging.error(f"training failed: {e}")
     except KeyboardInterrupt:
-        print("\n[INFO] training interrupted")
+        logging.error("\ntraining interrupted")
     finally:
         try:
             client.close()

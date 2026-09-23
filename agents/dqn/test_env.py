@@ -2,7 +2,10 @@
 import sys
 import os
 import yaml
+import logging
 from client import ECMSimClient
+
+logging.basicConfig(level = logging.DEBUG)
 
 _SCRIPT_DIR = '/home/ky/workspace/ECMSim/agents/dqn/script'
 
@@ -32,4 +35,4 @@ if __name__ == "__main__":
         sinr = obs.sinr_db
         fm_list = obs.freq_match_factors
         zeta = sum(fm_list) / max(len(fm_list), 1)
-        print(f"P={p}, F={f}, SINR={sinr:.4f}, ζ={zeta}")
+        logging.info(f"P={p}, F={f}, SINR={sinr:.4f}, ζ={zeta}")
