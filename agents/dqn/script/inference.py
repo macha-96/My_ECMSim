@@ -54,9 +54,6 @@ def main():
     args = parse_args()
     cfg = load_config(args.config)
 
-    # Get radar bw from config for action mapping (freq will come from state)
-    radar_bw   = cfg["scene_radars"][0]["bandwidth"]
-
     # Connect via gRPC
     client = ECMSimClient(args.grpc_target)
     client.session_id = args.session_id
@@ -74,18 +71,20 @@ def main():
         for step in range(1, args.steps + 1):
             logging.info(f"\n--- Step {step}/{args.steps} ---")
 
-            # 1. Get state
+            # 1. Get state (threat-weighted aggregated, fixed 9-dim)
             state = client.get_state(args.jammer_id)
             logging.info(f"  state ({len(state)}): {[round(v, 3) for v in state]}")
 
-            # Extract actual radar freq from state (index 2: radar_freq / 20e9)
-            actual_radar_freq = state[2] * 20e9
+            # Extract aggregated radar params from state
+            # indices 0-3: weighted avg spatial/power; 4-6: most threatening radar's freq/bw/delta_f
+            actual_radar_freq = state[4] * 20e9
+            actual_radar_bw   = state[5] * 10e6
 
             # 2. Choose action
             if agent:
                 state_np = np.array(state, dtype=np.float32)
                 act = agent.choose_action(state_np)
-                power_dbm, jam_freq = index_to_action(act, actual_radar_freq, radar_bw, cfg)
+                power_dbm, jam_freq = index_to_action(act, actual_radar_freq, actual_radar_bw, cfg)
                 logging.info(f"  DQN act {act}: {power_dbm:.0f}dBm {jam_freq/1e9:.3f}GHz")
             else:
                 act, power_dbm, jam_freq = 0, 0.0, actual_radar_freq
@@ -99,7 +98,7 @@ def main():
             results = client.step_simulation()
             for r in results:
                 z = (sum(r.freq_match_factors) / max(len(r.freq_match_factors), 1)
-                     if r.freq_match_factors else 0)
+                      if r.freq_match_factors else 0)
                 logging.info(f"  R{r.radar_id}: SINR={r.sinr_db:.1f}dB "
                             f"detect={r.detect_success} "
                             f"score={r.jam_success_score:.3f} ζ={z:.3f}")

@@ -51,32 +51,25 @@ class DQNTrainer:
         jam_freq = self.radar_freq + freq_shift
         return power_dbm, jam_freq
 
-    def index_to_action_with_freq(self, idx, actual_radar_freq):
+    def index_to_action_with_freq(self, idx, actual_radar_freq, actual_radar_bw):
         pn = self.cfg["power_level_num"]
         p_idx = idx % pn
         f_idx = idx // pn
         power_dbm  = p_idx * 10.0
         center = self.freq_shift_num // 2
-        freq_shift = (f_idx - center) * (self.radar_bw * self.freq_shift_mult)
+        freq_shift = (f_idx - center) * (actual_radar_bw * self.freq_shift_mult)
         jam_freq = actual_radar_freq + freq_shift
         return power_dbm, jam_freq
 
     def randomize_radar(self):
-        """Randomize radar power and frequency for domain randomization."""
-        # Randomize power: 0-60 dBm
-        new_power = random.choice([0, 10, 20, 30, 40, 50, 60])
-        # Randomize frequency: 9.5-10.5 GHz (within ±500 MHz of nominal)
-        new_freq = self.radar_freq + random.uniform(-500e6, 500e6)
-        # Update radar via HTTP
+        """Randomize all radar params for domain randomization in multi-radar scenes."""
         try:
-            radar_cfg = None
             for rc in self.cfg["scene_radars"]:
-                if rc["id"] == self.radar_id:
-                    radar_cfg = rc.copy()
-                    break
-            if radar_cfg:
-                radar_cfg["Pt_dBm"] = new_power
-                radar_cfg["freq"] = new_freq
+                new_power = random.choice([0, 10, 20, 30, 40, 50, 60])
+                new_freq = rc["freq"] + random.uniform(-500e6, 500e6)
+                rc["Pt_dBm"] = new_power
+                rc["freq"] = new_freq
+                radar_cfg = rc.copy()
                 http_target = self.cfg["http_target"]
                 requests.put(f"{http_target}/api/radar",
                     json={"session_id": self.client.session_id, "radar": radar_cfg},
@@ -116,10 +109,12 @@ class DQNTrainer:
         step = 0
         step_log = []
         while step < 50:
-            # Extract actual radar freq from state (index 2: radar_freq / 20e9)
-            actual_radar_freq = state[2] * 20e9
+            # Extract aggregated radar params from state
+            # indices 0-3: weighted avg spatial/power; 4-6: most threatening radar's freq/bw/delta_f
+            actual_radar_freq = state[4] * 20e9
+            actual_radar_bw   = state[5] * 10e6
             act_idx = self.agent.choose_action(state_np)
-            power_dbm, jam_freq = self.index_to_action_with_freq(act_idx, actual_radar_freq)
+            power_dbm, jam_freq = self.index_to_action_with_freq(act_idx, actual_radar_freq, actual_radar_bw)
             freq_shift_khz = (jam_freq - actual_radar_freq) / 1e3
             try:
                 self.client.execute_action(self.jammer_id, power_dbm, jam_freq)

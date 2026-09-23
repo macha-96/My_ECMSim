@@ -158,10 +158,9 @@ void SimScene::clearAll() {
 // ========== DQN预留接口 ==========
 
 std::vector<double> SimScene::getStateForJammer(int jammer_id) const {
-    // 返回标准化状态向量: [雷达位置, 雷达频率, 干扰机位置, 干扰机频率, 距离, 频差]
-    // 后续对接Python RL框架时使用
+    // 威胁加权聚合状态向量：固定9维
+    // 空间/功率用加权平均，频率特征用威胁最大雷达的值实现直接瞄频
     std::vector<double> state;
-    // 查找指定干扰机
     const Jammer* jam = nullptr;
     for (const auto& j : m_jammers) {
         if (j.getId() == jammer_id) { jam = &j; break; }
@@ -169,23 +168,51 @@ std::vector<double> SimScene::getStateForJammer(int jammer_id) const {
     if (!jam) return state;
 
     auto [jx, jy] = jam->getPos();
-    // 遍历所有雷达，构造状态
+
+    double w_sum = 0.0;
+    double max_w = 0.0;
+    double max_freq = 0, max_bw = 0, max_delta_f = 0;
+    double sum_rx = 0, sum_ry = 0, sum_pt = 0, sum_dist = 0;
+
     for (const auto& radar : m_radars) {
         auto [rx, ry] = radar.getPos();
         double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
         double delta_f = std::abs(jam->getJamFreq() - radar.getFreq());
-        // 归一化状态值
-        state.push_back(rx / 20000.0);        // 雷达X [-1,1] 归一化
-        state.push_back(ry / 20000.0);        // 雷达Y
-        state.push_back(radar.getFreq() / 20e9); // 雷达频率 [0,1] 归一化
-        state.push_back(radar.getBandwidth() / 10e6); // 带宽 [0,1]
-        state.push_back(radar.getPtLin() / 1000.0); // 雷达功率 [0,1] (max 60dBm=1000W)
-        state.push_back(dist / 30000.0);      // 距离 [0,1]
-        state.push_back(delta_f / 10e9);      // 频差 [0,1]
+        double w = 1.0 / (dist + 1.0);
+
+        sum_rx    += rx * w;
+        sum_ry    += ry * w;
+        sum_pt    += radar.getPtLin() * w;
+        sum_dist  += dist * w;
+        w_sum     += w;
+
+        if (w > max_w) {
+            max_w     = w;
+            max_freq   = radar.getFreq();
+            max_bw     = radar.getBandwidth();
+            max_delta_f = delta_f;
+        }
     }
-    // 干扰机自身状态
-    state.push_back(jam->getPjLin() / 1000.0);  // 功率 [0,1] (max 60dBm=1000W)
-    state.push_back(jam->getJamFreq() / 20e9); // 频率 [0,1]
+
+    if (w_sum > 0.0) {
+        state.push_back(sum_rx  / w_sum / 20000.0);
+        state.push_back(sum_ry  / w_sum / 20000.0);
+        state.push_back(sum_pt  / w_sum / 1000.0);
+        state.push_back(sum_dist / w_sum / 30000.0);
+    } else {
+        state.push_back(0.0);
+        state.push_back(0.0);
+        state.push_back(0.0);
+        state.push_back(0.0);
+    }
+
+    // 频率特征：威胁最大雷达的频率（直接瞄频）
+    state.push_back(max_freq  / 20e9);
+    state.push_back(max_bw    / 10e6);
+    state.push_back(max_delta_f / 10e9);
+
+    state.push_back(jam->getPjLin() / 1000.0);
+    state.push_back(jam->getJamFreq() / 20e9);
 
     return state;
 }

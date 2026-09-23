@@ -149,7 +149,8 @@ std::vector<RadarSimResult> SceneManager::runSimulation(const std::string& sid) 
     return scene.runOneStep();
 }
 
-// DQN: return raw state vector without reward calculation
+// DQN: return threat-weighted aggregated state vector (fixed 9-dim for any radar count)
+// Frequency-related features use the most threatening radar's values for direct targeting
 std::vector<double> SceneManager::getStateForJammer(const std::string& sid, int jammer_id) const {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto* s = getSession(sid);
@@ -162,18 +163,50 @@ std::vector<double> SceneManager::getStateForJammer(const std::string& sid, int 
     auto [jx, jy] = jam.getPos();
     std::vector<double> state;
 
+    // Compute threat weights and find the most threatening radar
+    double w_sum = 0.0;
+    double max_w = 0.0;
+    double sum_rx = 0, sum_ry = 0, sum_pt = 0, sum_dist = 0;
+    double max_freq = 0, max_bw = 0, max_delta_f = 0;
+
     for (const auto& [rid, radar] : s->radars) {
         auto [rx, ry] = radar.getPos();
         double dist = ECMAlgo::calc2DDistance(rx, ry, jx, jy);
         double delta_f = std::abs(jam.getJamFreq() - radar.getFreq());
-        state.push_back(rx / 20000.0);
-        state.push_back(ry / 20000.0);
-        state.push_back(radar.getFreq() / 20e9);
-        state.push_back(radar.getBandwidth() / 10e6);
-        state.push_back(radar.getPtLin() / 1000.0); // 雷达功率 [0,1]
-        state.push_back(dist / 30000.0);
-        state.push_back(delta_f / 10e9);
+        double w = 1.0 / (dist + 1.0);
+
+        sum_rx    += rx * w;
+        sum_ry    += ry * w;
+        sum_pt    += radar.getPtLin() * w;
+        sum_dist  += dist * w;
+        w_sum     += w;
+
+        if (w > max_w) {
+            max_w    = w;
+            max_freq  = radar.getFreq();
+            max_bw    = radar.getBandwidth();
+            max_delta_f = delta_f;
+        }
     }
+
+    if (w_sum > 0.0) {
+        // Spatial/power features: weighted average
+        state.push_back(sum_rx    / w_sum / 20000.0);
+        state.push_back(sum_ry    / w_sum / 20000.0);
+        state.push_back(sum_pt    / w_sum / 1000.0);
+        state.push_back(sum_dist  / w_sum / 30000.0);
+    } else {
+        state.push_back(0.0);
+        state.push_back(0.0);
+        state.push_back(0.0);
+        state.push_back(0.0);
+    }
+
+    // Frequency features: from the most threatening radar (direct targeting)
+    state.push_back(max_freq  / 20e9);
+    state.push_back(max_bw    / 10e6);
+    state.push_back(max_delta_f / 10e9);
+
     state.push_back(jam.getPjLin() / 1000.0);
     state.push_back(jam.getJamFreq() / 20e9);
     return state;
