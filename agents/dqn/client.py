@@ -13,6 +13,10 @@ class ECMSimClient:
         self.channel = grpc.insecure_channel(target)
         self.stub = agent_service_pb2_grpc.AgentServiceStub(self.channel)
         self.session_id = ""
+        # 新增：最近一次 get_state / step_simulation 返回的干扰模式
+        self.last_jammer_mode = ""
+        self.last_jammer_ids = []
+        self.last_jammer_modes = []
 
     def get_state(self, jammer_id: int):
         req = agent_service_pb2.StateRequest(
@@ -24,6 +28,7 @@ class ECMSimClient:
                 f"GetState failed: {rep.error} "
                 f"(session={self.session_id}, jammer={jammer_id})"
             )
+        self.last_jammer_mode = rep.jammer_mode  # "NOISE_JAM" / "RANGE_DECEPT"
         return list(rep.state)
 
     def execute_action(self, jammer_id: int, power_dbm: float, jam_freq: float):
@@ -48,6 +53,8 @@ class ECMSimClient:
                 f"StepSimulation failed: {rep.error} "
                 f"(session={self.session_id})"
             )
+        self.last_jammer_ids = list(rep.jammer_ids)
+        self.last_jammer_modes = list(rep.jammer_modes)
         return rep.results
 
     def reset(self):

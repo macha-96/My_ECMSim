@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import protos.agent_service_pb2 as agent__service__pb2
+from protos import agent_service_pb2 as protos_dot_agent__service__pb2
 
 
 class AgentServiceStub(object):
@@ -16,18 +16,18 @@ class AgentServiceStub(object):
         """
         self.GetState = channel.unary_unary(
                 '/ecmsim.AgentService/GetState',
-                request_serializer=agent__service__pb2.StateRequest.SerializeToString,
-                response_deserializer=agent__service__pb2.StateResponse.FromString,
+                request_serializer=protos_dot_agent__service__pb2.StateRequest.SerializeToString,
+                response_deserializer=protos_dot_agent__service__pb2.StateResponse.FromString,
                 _registered_method=True)
         self.ExecuteAction = channel.unary_unary(
                 '/ecmsim.AgentService/ExecuteAction',
-                request_serializer=agent__service__pb2.ActionRequest.SerializeToString,
-                response_deserializer=agent__service__pb2.ActionResponse.FromString,
+                request_serializer=protos_dot_agent__service__pb2.ActionRequest.SerializeToString,
+                response_deserializer=protos_dot_agent__service__pb2.ActionResponse.FromString,
                 _registered_method=True)
         self.StepSimulation = channel.unary_unary(
                 '/ecmsim.AgentService/StepSimulation',
-                request_serializer=agent__service__pb2.StepRequest.SerializeToString,
-                response_deserializer=agent__service__pb2.StepResponse.FromString,
+                request_serializer=protos_dot_agent__service__pb2.StepRequest.SerializeToString,
+                response_deserializer=protos_dot_agent__service__pb2.StepResponse.FromString,
                 _registered_method=True)
 
 
@@ -57,18 +57,18 @@ def add_AgentServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'GetState': grpc.unary_unary_rpc_method_handler(
                     servicer.GetState,
-                    request_deserializer=agent__service__pb2.StateRequest.FromString,
-                    response_serializer=agent__service__pb2.StateResponse.SerializeToString,
+                    request_deserializer=protos_dot_agent__service__pb2.StateRequest.FromString,
+                    response_serializer=protos_dot_agent__service__pb2.StateResponse.SerializeToString,
             ),
             'ExecuteAction': grpc.unary_unary_rpc_method_handler(
                     servicer.ExecuteAction,
-                    request_deserializer=agent__service__pb2.ActionRequest.FromString,
-                    response_serializer=agent__service__pb2.ActionResponse.SerializeToString,
+                    request_deserializer=protos_dot_agent__service__pb2.ActionRequest.FromString,
+                    response_serializer=protos_dot_agent__service__pb2.ActionResponse.SerializeToString,
             ),
             'StepSimulation': grpc.unary_unary_rpc_method_handler(
                     servicer.StepSimulation,
-                    request_deserializer=agent__service__pb2.StepRequest.FromString,
-                    response_serializer=agent__service__pb2.StepResponse.SerializeToString,
+                    request_deserializer=protos_dot_agent__service__pb2.StepRequest.FromString,
+                    response_serializer=protos_dot_agent__service__pb2.StepResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -96,8 +96,8 @@ class AgentService(object):
             request,
             target,
             '/ecmsim.AgentService/GetState',
-            agent__service__pb2.StateRequest.SerializeToString,
-            agent__service__pb2.StateResponse.FromString,
+            protos_dot_agent__service__pb2.StateRequest.SerializeToString,
+            protos_dot_agent__service__pb2.StateResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -123,8 +123,8 @@ class AgentService(object):
             request,
             target,
             '/ecmsim.AgentService/ExecuteAction',
-            agent__service__pb2.ActionRequest.SerializeToString,
-            agent__service__pb2.ActionResponse.FromString,
+            protos_dot_agent__service__pb2.ActionRequest.SerializeToString,
+            protos_dot_agent__service__pb2.ActionResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -150,8 +150,8 @@ class AgentService(object):
             request,
             target,
             '/ecmsim.AgentService/StepSimulation',
-            agent__service__pb2.StepRequest.SerializeToString,
-            agent__service__pb2.StepResponse.FromString,
+            protos_dot_agent__service__pb2.StepRequest.SerializeToString,
+            protos_dot_agent__service__pb2.StepResponse.FromString,
             options,
             channel_credentials,
             insecure,

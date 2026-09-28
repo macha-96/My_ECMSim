@@ -17,6 +17,8 @@ message StateResponse {
   repeated double state = 1;
   bool success = 2;
   string error = 3;
+  // 干扰机干扰模式: "NOISE_JAM"(噪声压制) / "RANGE_DECEPT"(距离欺骗)
+  string jammer_mode = 4;
 }
 
 message ActionRequest {
@@ -52,4 +54,7 @@ message StepResponse {
   repeated RadarResultProto results = 1;
   bool success = 2;
   string error = 3;
+  // 场景中所有干扰机的干扰模式，与 jammer_ids 对应
+  repeated int32 jammer_ids = 4;
+  repeated string jammer_modes = 5;
 }

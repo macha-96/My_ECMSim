@@ -1,6 +1,10 @@
 #include <app/handlers/grpc_service.h>
 #include <app/handlers/common.h>
 
+static inline const char* jammerModeStr(ECMSim::JamType t) {
+    return t == ECMSim::JamType::NOISE_JAM ? "NOISE_JAM" : "RANGE_DECEPT";
+}
+
 grpc::Status AgentSvc::GetState(
     grpc::ServerContext*,
     const ecmsim::StateRequest* rq,
@@ -12,6 +16,9 @@ grpc::Status AgentSvc::GetState(
         return grpc::Status::OK;
     }
     for (double v : s) rp->add_state(v);
+    if (auto* jam = g_scene_mgr.getJammer(rq->session_id(), rq->jammer_id())) {
+        rp->set_jammer_mode(jammerModeStr(jam->getJamType()));
+    }
     rp->set_success(true);
     return grpc::Status::OK;
 }
@@ -53,6 +60,13 @@ grpc::Status AgentSvc::StepSimulation(
         p->set_decept_effect_score(r.decept_effect_score);
         for (double d : r.jam_freq_deltas) p->add_jam_freq_deltas(d);
         for (double z : r.freq_match_factors) p->add_freq_match_factors(z);
+    }
+    // 填充场景中所有干扰机的 id 和干扰模式
+    for (int jid : g_scene_mgr.getJammerIds(rq->session_id())) {
+        if (auto* jam = g_scene_mgr.getJammer(rq->session_id(), jid)) {
+            rp->add_jammer_ids(jid);
+            rp->add_jammer_modes(jammerModeStr(jam->getJamType()));
+        }
     }
     rp->set_success(true);
     // broadcastScene(rq->session_id());
