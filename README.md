@@ -386,6 +386,7 @@ cd $PROJECT_ROOT
 ECMSim/
 ├── CMakeLists.txt              # 构建配置
 ├── README.md                   # 本文档
+├── AGENTS.md                   # Agent 开发指南
 ├── scripts/
 │   └── setup_deps.sh           # 依赖安装脚本
 ├── config/                     # 场景 JSON 配置
@@ -393,6 +394,15 @@ ECMSim/
 │   ├── algo/                   # 物理常数 + 雷达方程
 │   ├── entity/                 # Radar, Jammer 类
 │   ├── sence/                  # SimScene + SceneManager
+│   ├── app/
+│   │   ├── framework/          # 基础设施层（通用）
+│   │   │   ├── router.h        #   RouteTrie 字典树路由
+│   │   │   ├── http_session.h  #   HTTP 会话 + 服务器
+│   │   │   └── ws_session.h    #   WebSocket 会话 + 广播器
+│   │   └── handlers/           # 业务层（ECMSim 专属）
+│   │       ├── common.h        #   全局状态 + 工具函数
+│   │       ├── routes.h        #   initRoutes + API handlers
+│   │       └── grpc_service.h  #   gRPC AgentService
 │   ├── jsoncpp/json/           # jsoncpp 头文件
 │   └── my_http_lib/            # 旧日志头文件（已弃用）
 ├── src/
@@ -401,7 +411,15 @@ ECMSim/
 │   ├── sence/                  # sim_sence.cpp + scene_manager.cpp
 │   ├── jsoncpp/                # jsoncpp 静态编译
 │   └── app/
-│       └── web_server_beast.cpp # 主服务器 (HTTP+gRPC+WebSocket)
+│       ├── framework/          # 基础设施层实现
+│       │   ├── router.cpp      #   RouteTrie 实现
+│       │   ├── http_session.cpp
+│       │   └── ws_session.cpp
+│       ├── handlers/           # 业务层实现
+│       │   ├── common.cpp      #   工具函数 + cleanup
+│       │   ├── routes.cpp      #   initRoutes + 10 个 handler
+│       │   └── grpc_service.cpp
+│       └── web_server_beast.cpp # main() 入口
 ├── build/                      # cmake 构建输出
 ├── bin/                        # 编译后的二进制文件
 ├── static/

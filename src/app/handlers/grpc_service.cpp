@@ -1,5 +1,5 @@
-#include <app/grpc_service.h>
-#include <app/common.h>
+#include <app/handlers/grpc_service.h>
+#include <app/handlers/common.h>
 
 grpc::Status AgentSvc::GetState(
     grpc::ServerContext*,

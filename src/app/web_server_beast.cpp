@@ -12,10 +12,11 @@
  *   - router.h/.cpp         — 字典树路由分发
  */
 
-#include <app/common.h>
-#include <app/http_session.h>
-#include <app/grpc_service.h>
-#include <app/router.h>
+#include <app/handlers/common.h>
+#include <app/framework/http_session.h>
+#include <app/handlers/grpc_service.h>
+#include <app/framework/router.h>
+#include <app/handlers/routes.h>
 #include <spdlog/spdlog.h>
 
 RouteTrie g_router;

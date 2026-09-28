@@ -26,5 +26,3 @@ private:
 
     TrieNode root_;
 };
-
-void initRoutes(RouteTrie& trie);

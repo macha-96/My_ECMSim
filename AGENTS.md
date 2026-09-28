@@ -41,13 +41,15 @@ include/
   algo/                  — ECMAlgo namespace: physics constants + radar equations
   entity/                — ECMSim namespace: Radar, Jammer classes
   sence/                 — ECMSim namespace: SimScene + SceneManager
-  app/                   — V3 服务器模块头文件
-    common.h             — 全局状态、工具函数、cleanup_controller
-    ws_session.h         — WebSocket 会话 + 广播器
-    http_handlers.h      — HTTP API 处理函数
-    http_session.h       — HTTP 会话类 + 服务器类
-    grpc_service.h       — gRPC AgentService
-    router.h             — 字典树路由分发
+  app/
+    framework/           — 基础设施层（通用，无 ECMSim 业务依赖）
+      router.h           — RouteTrie 纯字典树路由
+      http_session.h     — http_session + http_server
+      ws_session.h       — websocket_session + ws_broadcaster
+    handlers/            — 业务层（ECMSim 专属）
+      common.h           — 全局状态、工具函数、cleanup_controller
+      routes.h           — initRoutes + 10 个 API handler 声明
+      grpc_service.h     — gRPC AgentService
   grpc_gen/              — generated gRPC stub code (build/grpc_gen/ during cmake)
   jsoncpp/json/          — bundled jsoncpp headers
 src/                     — .cpp mirrors of include/ layout
@@ -55,14 +57,16 @@ src/                     — .cpp mirrors of include/ layout
   entity/                — radar.cpp, jammer.cpp
   sence/                 — sim_sence.cpp + scene_manager.cpp
   jsoncpp/               — jsoncpp static lib
-  app/                   — V3 服务器模块实现
+  app/
+    framework/           — 基础设施层实现
+      router.cpp         — RouteTrie 实现
+      http_session.cpp   — HTTP 会话 + 服务器实现
+      ws_session.cpp     — WebSocket 会话 + 广播器实现
+    handlers/            — 业务层实现
+      common.cpp         — 工具函数 + cleanup_controller 实现
+      routes.cpp         — initRoutes + 10 个 API handler 实现
+      grpc_service.cpp   — gRPC 服务实现
     web_server_beast.cpp — main() 入口 + 启动逻辑
-    common.cpp           — 工具函数 + cleanup_controller 实现
-    ws_session.cpp       — WebSocket 会话 + 广播器实现
-    http_handlers.cpp    — 10 个 API 处理函数
-    http_session.cpp     — HTTP 会话 + 服务器实现
-    grpc_service.cpp     — gRPC 服务实现
-    router.cpp           — 字典树路由分发实现
 build/                   — cmake build output (sim_core.a, grpc_gen/)
 bin/                     — compiled binaries
 static/
@@ -97,7 +101,7 @@ third_party/spdlog/      — spdlog v1.17.0 (header-only 日志库)
 ## Architecture
 
 - Two namespaces: ECMAlgo (physics/math, no state) and ECMSim (entities + simulation).
-- Include style: all paths relative to include/, e.g. `<entity/radar.h>`, `<app/common.h>`.
+- Include style: all paths relative to include/, e.g. `<entity/radar.h>`, `<app/framework/router.h>`, `<app/handlers/routes.h>`.
 - Unit convention: all physical quantities in linear SI (W, Hz, m) internally.
 - dB helpers (`db2lin`, `lin2db`) are inline in `include/algo/math_const.h`.
 - jsoncpp is statically compiled via `src/jsoncpp/jsoncpp.cpp`.
@@ -112,20 +116,20 @@ third_party/spdlog/      — spdlog v1.17.0 (header-only 日志库)
 
 ### Server Modules
 
-| Module | Header | Source | Description |
-|--------|--------|--------|-------------|
-| Common | `include/app/common.h` | `src/app/common.cpp` | 全局状态、工具函数、cleanup_controller |
-| WebSocket | `include/app/ws_session.h` | `src/app/ws_session.cpp` | WebSocket 会话 + 广播器 |
-| HTTP Handlers | `include/app/http_handlers.h` | `src/app/http_handlers.cpp` | 10 个 API 处理函数 |
-| HTTP Session | `include/app/http_session.h` | `src/app/http_session.cpp` | HTTP 会话类 + 服务器类 |
-| gRPC | `include/app/grpc_service.h` | `src/app/grpc_service.cpp` | gRPC AgentService |
-| Router | `include/app/router.h` | `src/app/router.cpp` | 字典树路由分发 |
-| Entry | — | `src/app/web_server_beast.cpp` | main() 入口 + 启动逻辑 |
+| Layer | Module | Header | Source | Description |
+|-------|--------|--------|--------|-------------|
+| Framework | Router | `include/app/framework/router.h` | `src/app/framework/router.cpp` | RouteTrie 纯字典树路由 |
+| Framework | HTTP Session | `include/app/framework/http_session.h` | `src/app/framework/http_session.cpp` | HTTP 会话类 + 服务器类 |
+| Framework | WebSocket | `include/app/framework/ws_session.h` | `src/app/framework/ws_session.cpp` | WebSocket 会话 + 广播器 |
+| Handlers | Common | `include/app/handlers/common.h` | `src/app/handlers/common.cpp` | 全局状态、工具函数、cleanup_controller |
+| Handlers | Routes | `include/app/handlers/routes.h` | `src/app/handlers/routes.cpp` | initRoutes + 10 个 API 处理函数 |
+| Handlers | gRPC | `include/app/handlers/grpc_service.h` | `src/app/handlers/grpc_service.cpp` | gRPC AgentService |
+| Entry | — | — | `src/app/web_server_beast.cpp` | main() 入口 + 启动逻辑 |
 
 ### CMake Build Target
 
 ```
-ecmsim_http_beast  →  src/app/*.cpp + sim_core.a + gRPC + boost beast
+ecmsim_http_beast  →  src/app/framework/*.cpp + src/app/handlers/*.cpp + sim_core.a + gRPC + boost beast
 sim_core           →  src/algo + src/entity + src/sence + src/jsoncpp + grpc_gen
 ```
 
@@ -178,14 +182,19 @@ service AgentService {
 
 ```
 SceneManager
-├── std::unordered_map<string, Session>   // session hash table
-│   └── Session
-│       ├── std::map<int, Radar>           // red-black tree, O(log n)
-│       └── std::map<int, Jammer>          // red-black tree
-└── std::mutex                             // thread safety
+├── std::unordered_map<string, SessionData>   // session hash table
+│   └── SessionData
+│       ├── SimScene scene                     // 持有雷达 + 干扰机（std::map 容器）
+│       │   ├── std::map<int, Radar>
+│       │   └── std::map<int, Jammer>
+│       ├── uint64_t created_at
+│       └── uint64_t last_access
+└── std::mutex                                 // thread safety
 ```
 
 HTTP, gRPC, and WebSocket servers share one SceneManager instance via mutex. Every mutation calls `broadcastScene()` to push updates to WebSocket clients.
+
+**SessionData 与 SimScene 合并**：`SessionData` 直接持有 `SimScene scene`，`runSimulation()` 直接调用 `scene.runOneStep()`，无需数据拷贝。所有 CRUD 操作（addRadar/removeRadar 等）委托给 `SimScene`。
 
 ### Data Flow
 

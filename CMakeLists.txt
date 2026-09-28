@@ -106,12 +106,12 @@ target_link_libraries(sim_core PUBLIC
 
 set(APP_HTTP_BEAST_SRCS
     ${PROJECT_SOURCE_DIR}/src/app/web_server_beast.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/common.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/ws_session.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/http_handlers.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/http_session.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/grpc_service.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/router.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/framework/router.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/framework/http_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/framework/ws_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/handlers/common.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/handlers/routes.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/handlers/grpc_service.cpp
 )
 
 set(GRPC_LIBS

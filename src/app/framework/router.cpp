@@ -1,10 +1,7 @@
-#include <app/router.h>
-#include <app/http_handlers.h>
-#include <app/common.h>
+#include <app/framework/router.h>
 #include <spdlog/spdlog.h>
-#include <sstream>
 
-std::vector<std::string> splitPath(const std::string& path) {
+static std::vector<std::string> splitPath(const std::string& path) {
     std::vector<std::string> segments;
     std::string seg;
     for (char c : path) {
@@ -71,21 +68,4 @@ void RouteTrie::dumpNode(const TrieNode& node, int depth) const {
 void RouteTrie::dump() const {
     spdlog::info("路由字典树:");
     dumpNode(root_, 0);
-}
-
-void initRoutes(RouteTrie& trie) {
-    trie.addRoute("/", [](const http::request<http::string_body>& req) -> std::string {
-        return g_index_html;
-    });
-
-    trie.addRoute("/api/scene", handleScene);
-    trie.addRoute("/api/scene/list", handleSceneList);
-    trie.addRoute("/api/scene/stats", handleSceneStats);
-    trie.addRoute("/api/radars", handleRadars);
-    trie.addRoute("/api/radar", handleRadar);
-    trie.addRoute("/api/jammers", handleJammers);
-    trie.addRoute("/api/jammer", handleJammer);
-    trie.addRoute("/api/simulate", handleSimulate);
-    trie.addRoute("/api/dqn/state", handleDqnState);
-    trie.addRoute("/api/dqn/action", handleDqnAction);
 }

@@ -1,6 +1,6 @@
-#include <app/http_handlers.h>
-#include <app/common.h>
-#include <app/ws_session.h>
+#include <app/handlers/routes.h>
+#include <app/handlers/common.h>
+#include <app/framework/ws_session.h>
 #include <sence/scene_manager.h>
 #include <jsoncpp/json/json.h>
 
@@ -432,4 +432,23 @@ std::string handleSceneStats(const http::request<http::string_body>& req) {
     stats["memory_estimate_bytes"] = static_cast<Json::Int64>(mem_estimate);
 
     return makeJson(stats);
+}
+
+#include <app/framework/router.h>
+
+void initRoutes(RouteTrie& trie) {
+    trie.addRoute("/", [](const http::request<http::string_body>& req) -> std::string {
+        return g_index_html;
+    });
+
+    trie.addRoute("/api/scene", handleScene);
+    trie.addRoute("/api/scene/list", handleSceneList);
+    trie.addRoute("/api/scene/stats", handleSceneStats);
+    trie.addRoute("/api/radars", handleRadars);
+    trie.addRoute("/api/radar", handleRadar);
+    trie.addRoute("/api/jammers", handleJammers);
+    trie.addRoute("/api/jammer", handleJammer);
+    trie.addRoute("/api/simulate", handleSimulate);
+    trie.addRoute("/api/dqn/state", handleDqnState);
+    trie.addRoute("/api/dqn/action", handleDqnAction);
 }

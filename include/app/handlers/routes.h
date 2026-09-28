@@ -5,6 +5,8 @@
 
 namespace http = boost::beast::http;
 
+void initRoutes(class RouteTrie& trie);
+
 std::string handleScene(const http::request<http::string_body>& req);
 std::string handleRadars(const http::request<http::string_body>& req);
 std::string handleRadar(const http::request<http::string_body>& req);
