@@ -56,9 +56,10 @@ scene_jammers:
 
 # State / action dimensions
 state_dim: 9
-action_dim: 21
+action_dim: 42          # N_radars(2) × freq_shift_num(3) × power_level_num(7)
 power_level_num: 7
 freq_shift_num: 3
+radar_count: 2          # Number of radars in scene (for action space decomposition)
 
 # ===== Multi-dimensional continuous reward (from optimize.md) =====
 # Sigmoid: Pd = 1/(1+exp(-alpha*(SINR_dB - gamma)))

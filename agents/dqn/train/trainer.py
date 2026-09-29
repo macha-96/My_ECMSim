@@ -34,15 +34,37 @@ class DQNTrainer:
         self.freq_shift_mult = cfg.get("freq_shift_mult", 2.5)
         self.ep = 0
 
-    def index_to_action_with_freq(self, idx, actual_radar_freq, actual_radar_bw):
+    def _decode_action(self, idx):
+        """Decode action index into (target_idx, freq_idx, power_idx)."""
         pn = self.cfg["power_level_num"]
-        p_idx = idx % pn
-        f_idx = idx // pn
+        fn = self.freq_shift_num
+        per_radar = fn * pn
+        target_idx = idx // per_radar
+        remainder = idx % per_radar
+        f_idx = remainder // pn
+        p_idx = remainder % pn
+        return target_idx, f_idx, p_idx
+
+    def index_to_action_multi(self, idx, state_raw):
+        """Map action index to (power_dbm, jam_freq) using target radar from state."""
+        radar_count = int(state_raw[0])
+        target_idx, f_idx, p_idx = self._decode_action(idx)
+        target_idx = min(target_idx, radar_count - 1) if radar_count > 0 else 0
+
         power_dbm = p_idx * 10.0
+
+        if radar_count > 0:
+            offset = 1 + target_idx * 7
+            actual_radar_freq = state_raw[offset + 2] * 20e9
+            actual_radar_bw = state_raw[offset + 3] * 10e6
+        else:
+            actual_radar_freq = 10e9
+            actual_radar_bw = 1e6
+
         center = self.freq_shift_num // 2
         freq_shift = (f_idx - center) * (actual_radar_bw * self.freq_shift_mult)
         jam_freq = actual_radar_freq + freq_shift
-        return power_dbm, jam_freq
+        return power_dbm, jam_freq, target_idx
 
     def randomize_radar(self):
         try:
@@ -133,21 +155,12 @@ class DQNTrainer:
             actions = {}
             for jid in self.jammer_ids:
                 act_idx = self.agents[jid].choose_action(states_raw[jid])
-                radar_count = int(states_raw[jid][0])
-                if radar_count > 0:
-                    offset = 1
-                    actual_radar_freq = states_raw[jid][offset + 2] * 20e9
-                    actual_radar_bw = states_raw[jid][offset + 3] * 10e6
-                else:
-                    actual_radar_freq = self.radar_freqs.get(jid, 10e9)
-                    actual_radar_bw = 1e6
-                power_dbm, jam_freq = self.index_to_action_with_freq(
-                    act_idx, actual_radar_freq, actual_radar_bw)
-                actions[jid] = (act_idx, power_dbm, jam_freq)
+                power_dbm, jam_freq, target_idx = self.index_to_action_multi(act_idx, states_raw[jid])
+                actions[jid] = (act_idx, power_dbm, jam_freq, target_idx)
 
             try:
                 for jid in self.jammer_ids:
-                    _, power_dbm, jam_freq = actions[jid]
+                    _, power_dbm, jam_freq, _ = actions[jid]
                     self.client.execute_action(jid, power_dbm, jam_freq)
                 results = self.client.step_simulation()
             except Exception as e:
@@ -163,7 +176,7 @@ class DQNTrainer:
                 next_states_np[jid] = self.agents[jid].parse_state(next_states_raw[jid])
 
             for jid in self.jammer_ids:
-                act_idx, power_dbm, _ = actions[jid]
+                act_idx, power_dbm, _, tgt = actions[jid]
                 reward = self.compute_reward(list(results), jid, power_dbm)
                 self.agents[jid].buffer.push(states_np[jid], act_idx, reward, next_states_np[jid], False)
                 self.agents[jid].update()
