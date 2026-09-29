@@ -57,7 +57,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="ECMSim DQN Trainer")
     p.add_argument("--session-id", default = None)
     p.add_argument("--radar-id", type = int, default = 1)
-    p.add_argument("--jammer-id", type = int, default = 1)
+    p.add_argument("--jammer-ids", default = "1,2",
+                   help="Comma-separated jammer IDs to train (e.g. '1,2')")
     p.add_argument("--episodes", type = int, default = None)
     p.add_argument("--http-target", default = None)
     p.add_argument("--grpc-target", default = None)
@@ -89,9 +90,11 @@ def main():
     if args.episodes:
         cfg["max_train_episode"] = args.episodes
 
+    jammer_ids = [int(x.strip()) for x in args.jammer_ids.split(",") if x.strip()]
+
     http_t, grpc_t = cfg["http_target"], cfg["grpc_target"]
     logging.info(f"http={http_t} grpc={grpc_t}")
-    logging.info(f"radar_id={args.radar_id} jammer_id={args.jammer_id} "
+    logging.info(f"radar_id={args.radar_id} jammer_ids={jammer_ids} "
           f"episodes={cfg['max_train_episode']}")
 
     if not wait_for_backend(http_t):
@@ -114,7 +117,7 @@ def main():
             logging.error(f"setup failed: {e}")
             sys.exit(1)
 
-    trainer = DQNTrainer(cfg, client, args.radar_id, args.jammer_id)
+    trainer = DQNTrainer(cfg, client, jammer_ids)
 
     try:
         trainer.train()

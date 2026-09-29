@@ -1,68 +1,50 @@
 import sys, os, time, numpy as np, requests, yaml, random, logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-logging.basicConfig(level = logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 from client import ECMSimClient
 from core.dqn_agent import DQNJammerAgent
 from utils.common import mkdir_if_not_exist
 
 
 class DQNTrainer:
-    def __init__(self, cfg, client, radar_id, jammer_id):
+    def __init__(self, cfg, client, jammer_ids):
         self.cfg = cfg
         self.client = client
-        self.radar_id = radar_id
-        self.jammer_id = jammer_id
-        self.agent = DQNJammerAgent(cfg)
+        self.jammer_ids = list(jammer_ids)
+        self.agents = {jid: DQNJammerAgent(cfg) for jid in self.jammer_ids}
         self.max_ep = cfg["max_train_episode"]
 
-        radar_cfg = None
+        self.radar_freqs = {}
+        self.radar_bws = {}
         for rc in cfg["scene_radars"]:
-            if rc["id"] == radar_id:
-                radar_cfg = rc
-                break
-        if radar_cfg is None:
-            raise ValueError(f"radar id {radar_id} not found")
-        self.radar_freq = radar_cfg["freq"]
-        self.radar_bw   = radar_cfg["bandwidth"]
+            self.radar_freqs[rc["id"]] = rc["freq"]
+            self.radar_bws[rc["id"]] = rc["bandwidth"]
 
-        # Reward parameters (from optimize.md)
         rw = cfg.get("reward_weights", {})
         self.wd = rw.get("wd", 1.0)
-        self.wf = rw.get("wf", 0.5)
-        self.wp = rw.get("wp", 0.1)
+        self.wf = rw.get("wf", 0.3)
+        self.wp = rw.get("wp", 0.01)
+        self.wred = rw.get("wred", 0.5)
         self.sig_alpha = cfg.get("sigmoid_alpha", 0.5)
         self.sig_gamma = cfg.get("sigmoid_gamma", -50.0)
         self.max_db = 60.0
+        self.pd_threshold = 0.5
 
-        # Freq shift parameters
         self.freq_shift_num = cfg.get("freq_shift_num", 3)
         self.freq_shift_mult = cfg.get("freq_shift_mult", 2.5)
-        self.ep = 0  # Current episode counter
-
-    def index_to_action(self, idx):
-        pn = self.cfg["power_level_num"]
-        p_idx = idx % pn
-        f_idx = idx // pn
-        power_dbm  = p_idx * 10.0
-        # Wider shift: (f_idx - center) * (bw * mult)
-        # center = freq_shift_num // 2
-        center = self.freq_shift_num // 2
-        freq_shift = (f_idx - center) * (self.radar_bw * self.freq_shift_mult)
-        jam_freq = self.radar_freq + freq_shift
-        return power_dbm, jam_freq
+        self.ep = 0
 
     def index_to_action_with_freq(self, idx, actual_radar_freq, actual_radar_bw):
         pn = self.cfg["power_level_num"]
         p_idx = idx % pn
         f_idx = idx // pn
-        power_dbm  = p_idx * 10.0
+        power_dbm = p_idx * 10.0
         center = self.freq_shift_num // 2
         freq_shift = (f_idx - center) * (actual_radar_bw * self.freq_shift_mult)
         jam_freq = actual_radar_freq + freq_shift
         return power_dbm, jam_freq
 
     def randomize_radar(self):
-        """Randomize all radar params for domain randomization in multi-radar scenes."""
         try:
             for rc in self.cfg["scene_radars"]:
                 new_power = random.choice([0, 10, 20, 30, 40, 50, 60])
@@ -74,113 +56,173 @@ class DQNTrainer:
                 requests.put(f"{http_target}/api/radar",
                     json={"session_id": self.client.session_id, "radar": radar_cfg},
                     timeout=10)
-        except Exception as e:
-            pass  # Ignore HTTP errors during training
+        except Exception:
+            pass
 
-    def compute_reward(self, results, power_dbm):
-        """Continuous multi-dimensional reward (optimize.md §4.2):
-           R = wd*(1-Pd) + wf*avg_zeta - wp*(PdBm/maxPd)
-           Pd = 1/(1+exp(-alpha*(SINR-gamma)))
-        """
+    def _pd_from_sinr(self, sinr_db):
+        return 1.0 / (1.0 + np.exp(-self.sig_alpha * (sinr_db - self.sig_gamma)))
+
+    def _get_zeta(self, res, jammer_id):
+        jids = list(res.jammer_ids)
+        zetas = list(res.freq_match_factors)
+        if jammer_id in jids:
+            idx = jids.index(jammer_id)
+            if idx < len(zetas):
+                return zetas[idx]
+        return 0.0
+
+    def compute_reward(self, results, jammer_id, power_dbm):
         n = max(len(results), 1)
         p_norm = power_dbm / self.max_db
-        total   = 0.0
+
+        pd_list = []
+        zeta_sum = 0.0
         for res in results:
-            sinr_db   = res.sinr_db
-            Pd        = 1.0 / (1.0 + np.exp(-self.sig_alpha * (sinr_db - self.sig_gamma)))
-            zeta_list = list(res.freq_match_factors) if hasattr(res, 'freq_match_factors') else []
-            avg_z     = sum(zeta_list) / max(len(zeta_list), 1)
-            total    += self.wd * (1.0 - Pd) + self.wf * avg_z - self.wp * p_norm
-        return total / n
+            pd = self._pd_from_sinr(res.sinr_db)
+            pd_list.append(pd)
+            zeta_sum += self._get_zeta(res, jammer_id)
+
+        coverage = np.mean([1.0 - pd for pd in pd_list])
+        freq_match = zeta_sum / n
+
+        # Redundancy: assign each jammer to its best-matched radar
+        jammer_targets = {}
+        for jid in self.jammer_ids:
+            best_r, best_z = -1, -1.0
+            for res in results:
+                z = self._get_zeta(res, jid)
+                if z > best_z:
+                    best_z = z
+                    best_r = res.radar_id
+            jammer_targets[jid] = best_r
+
+        target_counts = {}
+        for r in jammer_targets.values():
+            target_counts[r] = target_counts.get(r, 0) + 1
+
+        my_target = jammer_targets.get(jammer_id, -1)
+        pileup = max(0, target_counts.get(my_target, 0) - 1)
+        uncovered = np.mean([1.0 if pd > self.pd_threshold else 0.0 for pd in pd_list])
+        dup_penalty = pileup * uncovered
+
+        reward = (self.wd * coverage
+                  + self.wf * freq_match
+                  - self.wred * dup_penalty
+                  - self.wp * p_norm)
+        return reward
 
     def run_episode(self, verbose=False):
         try:
-            # Domain randomization: randomize radar params before each episode
-            if self.ep > 100:  # After initial exploration, start randomizing
+            if self.ep > 100:
                 self.randomize_radar()
-            # 新增：episode态势重置
             self.client.reset()
         except Exception as e:
             logging.warning(f"reset failed: {e}")
             return -10.0, {}
-        state_raw = self.client.get_state(self.jammer_id)
-        state_np = self.agent.parse_state(state_raw)
-        total_reward = 0.0
-        step = 0
+
+        states_raw = {}
+        states_np = {}
+        for jid in self.jammer_ids:
+            states_raw[jid] = self.client.get_state(jid)
+            states_np[jid] = self.agents[jid].parse_state(states_raw[jid])
+
+        total_rewards = {jid: 0.0 for jid in self.jammer_ids}
         step_log = []
+        step = 0
         while step < 50:
-            act_idx = self.agent.choose_action(state_raw)
-            # For action mapping, use first radar's freq/bw from raw state
-            actual_radar_freq = state_raw[1 + 2] * 20e9
-            actual_radar_bw   = state_raw[1 + 3] * 10e6
-            power_dbm, jam_freq = self.index_to_action_with_freq(act_idx, actual_radar_freq, actual_radar_bw)
-            freq_shift_khz = (jam_freq - actual_radar_freq) / 1e3
+            actions = {}
+            for jid in self.jammer_ids:
+                act_idx = self.agents[jid].choose_action(states_raw[jid])
+                radar_count = int(states_raw[jid][0])
+                if radar_count > 0:
+                    offset = 1
+                    actual_radar_freq = states_raw[jid][offset + 2] * 20e9
+                    actual_radar_bw = states_raw[jid][offset + 3] * 10e6
+                else:
+                    actual_radar_freq = self.radar_freqs.get(jid, 10e9)
+                    actual_radar_bw = 1e6
+                power_dbm, jam_freq = self.index_to_action_with_freq(
+                    act_idx, actual_radar_freq, actual_radar_bw)
+                actions[jid] = (act_idx, power_dbm, jam_freq)
+
             try:
-                self.client.execute_action(self.jammer_id, power_dbm, jam_freq)
+                for jid in self.jammer_ids:
+                    _, power_dbm, jam_freq = actions[jid]
+                    self.client.execute_action(jid, power_dbm, jam_freq)
                 results = self.client.step_simulation()
-                reward  = self.compute_reward(list(results), power_dbm)
-                next_raw = self.client.get_state(self.jammer_id)
             except Exception as e:
                 logging.warning(f"gRPC step {step} failed: {e}")
-                return total_reward - 5.0, step_log
-            next_np = self.agent.parse_state(next_raw)
+                for jid in self.jammer_ids:
+                    total_rewards[jid] -= 5.0
+                break
 
-            # Collect per-step stats
-            sinr_db = results[0].sinr_db if results else -999
-            zeta_avg = (sum(results[0].freq_match_factors) / max(len(results[0].freq_match_factors), 1)
-                        if results and results[0].freq_match_factors else 0.0)
-            hit = results[0].detect_success if results else True
-            Pd = 1.0 / (1.0 + np.exp(-self.sig_alpha * (sinr_db - self.sig_gamma)))
-            step_info = {
-                "step": step, "act": act_idx,
-                "pwr_dbm": power_dbm, "freq_shift_khz": freq_shift_khz,
-                "sinr_db": sinr_db, "zeta": zeta_avg, "Pd": Pd,
-                "hit": hit, "reward": reward
-            }
-            step_log.append(step_info)
+            next_states_raw = {}
+            next_states_np = {}
+            for jid in self.jammer_ids:
+                next_states_raw[jid] = self.client.get_state(jid)
+                next_states_np[jid] = self.agents[jid].parse_state(next_states_raw[jid])
+
+            for jid in self.jammer_ids:
+                act_idx, power_dbm, _ = actions[jid]
+                reward = self.compute_reward(list(results), jid, power_dbm)
+                self.agents[jid].buffer.push(states_np[jid], act_idx, reward, next_states_np[jid], False)
+                self.agents[jid].update()
+                total_rewards[jid] += reward
+
+            if results:
+                r0 = results[0]
+                pd0 = self._pd_from_sinr(r0.sinr_db)
+                zeta0 = sum(self._get_zeta(r0, jid) for jid in self.jammer_ids) / max(len(self.jammer_ids), 1)
+                step_info = {
+                    "step": step,
+                    "sinr_db": r0.sinr_db, "Pd": pd0, "zeta": zeta0,
+                    "hit": r0.detect_success,
+                    "rewards": {jid: round(total_rewards[jid], 3) for jid in self.jammer_ids},
+                    "targets": {jid: self._get_zeta(r0, jid) for jid in self.jammer_ids},
+                }
+                step_log.append(step_info)
 
             if verbose:
-                print(f"  [STEP] s{step:2d} act={act_idx:2d} "
-                      f"P={power_dbm:3.0f}dBm Δf={freq_shift_khz:+.1f}kHz "
-                      f"SINR={sinr_db:+.1f}dB ζ={zeta_avg:.3f} "
-                      f"Pd={Pd:.4f} {'HIT' if hit else 'MISS'} "
-                      f"R={reward:+.4f}")
+                r0 = results[0] if results else None
+                sinr = f"{r0.sinr_db:+.1f}" if r0 else "N/A"
+                pd = f"{self._pd_from_sinr(r0.sinr_db):.4f}" if r0 else "N/A"
+                print(f"  [STEP] s{step:2d} SINR={sinr}dB Pd={pd} "
+                      f"R1={total_rewards[self.jammer_ids[0]]:+.3f} "
+                      f"R2={total_rewards[self.jammer_ids[1]]:+.3f}" if len(self.jammer_ids) > 1 else "")
 
-            self.agent.buffer.push(state_np, act_idx, reward, next_np, False)
-            self.agent.update()
-            state_np = next_np
-            state_raw = next_raw
-            total_reward += reward
+            states_raw = next_states_raw
+            states_np = next_states_np
             step += 1
-        return total_reward, step_log
+
+        return total_rewards, step_log
 
     def train(self):
         wdir = self.cfg["weight_save_dir"]
         mkdir_if_not_exist(wdir)
-        print(f"[TRAIN] radar_id={self.radar_id} jammer_id={self.jammer_id} episodes={self.max_ep}")
+        print(f"[TRAIN] jammers={self.jammer_ids} episodes={self.max_ep}")
         for ep in range(1, self.max_ep + 1):
             self.ep = ep
             verbose = (ep == 1 or ep % 100 == 0)
-            ep_reward, log = self.run_episode(verbose=verbose)
+            ep_rewards, log = self.run_episode(verbose=verbose)
             if ep % 20 == 0 or ep == 1:
-                avg_z = 0.0
-                avg_p = 0.0
                 avg_pd = 0.0
+                avg_z = 0.0
                 if log:
-                    avg_z = sum(s["zeta"] for s in log) / len(log)
-                    avg_p = sum(s["pwr_dbm"] for s in log) / len(log)
                     avg_pd = sum(s["Pd"] for s in log) / len(log)
-                loss = self.agent.update()
-                print(f"[TRAIN] Ep {ep:4d}/{self.max_ep} | "
-                      f"R={ep_reward:+.3f} | "
-                      f"ε={self.agent.epsilon:.3f} | "
-                      f"buf={self.agent.buffer.size()} | "
-                      f"loss={loss:.4f} | "
-                      f"⟨ζ⟩={avg_z:.3f} ⟨P⟩={avg_p:.1f}dBm ⟨Pd⟩={avg_pd:.4f}")
+                    avg_z = sum(s["zeta"] for s in log) / len(log)
+                losses = {jid: self.agents[jid].update() for jid in self.jammer_ids}
+                loss_str = " ".join(f"J{jid}={losses[jid]:.4f}" for jid in self.jammer_ids)
+                r_str = " ".join(f"J{jid}={ep_rewards[jid]:+.3f}" for jid in self.jammer_ids)
+                print(f"[TRAIN] Ep {ep:4d}/{self.max_ep} | {r_str} | "
+                      f"ε={self.agents[self.jammer_ids[0]].epsilon:.3f} | "
+                      f"buf={self.agents[self.jammer_ids[0]].buffer.size()} | "
+                      f"{loss_str} | ⟨Pd⟩={avg_pd:.4f} ⟨ζ⟩={avg_z:.3f}")
             if ep % 200 == 0:
-                sp = os.path.join(wdir, f"dqn_jammer_ep{ep}.pth")
-                self.agent.save_model(sp)
-                print(f"[SAVE] {sp}")
-        fp = os.path.join(wdir, "dqn_jammer_final.pth")
-        self.agent.save_model(fp)
-        print(f"[DONE] model saved: {fp}")
+                for jid in self.jammer_ids:
+                    sp = os.path.join(wdir, f"dqn_jammer_j{jid}_ep{ep}.pth")
+                    self.agents[jid].save_model(sp)
+                    print(f"[SAVE] {sp}")
+        for jid in self.jammer_ids:
+            fp = os.path.join(wdir, f"dqn_jammer_j{jid}_final.pth")
+            self.agents[jid].save_model(fp)
+            print(f"[DONE] model saved: {fp}")

@@ -28,6 +28,15 @@ scene_radars:
     bandwidth: 1000000.0
     sigma: 5
     thresh_db: -50
+  - id: 2
+    x: 15000
+    y: 0
+    Pt_dBm: 30
+    G_dB: 25
+    freq: 12000000000.0
+    bandwidth: 1000000.0
+    sigma: 5
+    thresh_db: -50
 
 scene_jammers:
   - id: 1
@@ -36,6 +45,13 @@ scene_jammers:
     Pj_dBm: 0
     Gj_dB: 10
     jam_freq: 10000000000.0
+    jam_type: "NOISE_JAM"
+  - id: 2
+    x: 10000
+    y: 5000
+    Pj_dBm: 0
+    Gj_dB: 10
+    jam_freq: 12000000000.0
     jam_type: "NOISE_JAM"
 
 # State / action dimensions
@@ -50,9 +66,10 @@ freq_shift_num: 3
 sigmoid_alpha: 0.5
 sigmoid_gamma: -50.0
 
-# Reward weights: R = wd*(1-Pd) + wf*avg_zeta - wp*(P_dBm/60)
+# Reward weights: R = wd*coverage + wf*freq_match - wred*dup - wp*(P_dBm/60)
 reward_weights:
-  wd: 1.0     # detection probability weight
-  wf: 0.3     # frequency match weight  
+  wd: 1.0     # global coverage weight (mean of 1-Pd across all radars)
+  wf: 0.3     # own frequency match weight
+  wred: 0.5   # redundancy penalty weight (pileup on same radar while another uncovered)
   wp: 0.01    # power penalty weight
   default: 0.1
