@@ -48,6 +48,9 @@ message RadarResultProto {
   double decept_effect_score = 8;
   repeated double jam_freq_deltas = 9;
   repeated double freq_match_factors = 10;
+  // 每个干扰机对当前雷达的贡献（与 jammer_ids 同序）
+  repeated int32 jammer_ids = 11;
+  repeated double effective_jam_powers = 12;
 }
 
 message StepResponse {

@@ -60,6 +60,9 @@ grpc::Status AgentSvc::StepSimulation(
         p->set_decept_effect_score(r.decept_effect_score);
         for (double d : r.jam_freq_deltas) p->add_jam_freq_deltas(d);
         for (double z : r.freq_match_factors) p->add_freq_match_factors(z);
+        // 每个干扰机对当前雷达的归属信息（按 jammer_ids 升序，与 freq_match_factors 同序）
+        for (int jid : r.jammer_ids) p->add_jammer_ids(jid);
+        for (double ep : r.effective_jam_powers) p->add_effective_jam_powers(ep);
     }
     // 填充场景中所有干扰机的 id 和干扰模式
     for (int jid : g_scene_mgr.getJammerIds(rq->session_id())) {
