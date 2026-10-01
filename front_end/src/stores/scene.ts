@@ -174,12 +174,45 @@ export const useSceneStore = defineStore('scene', () => {
       syncing.value = false
     }
   }
-  // —— 占位：Task 5 用真实实现替换 applyRemoteScene/setFocusedField ——
-  function setFocusedField(_key: string | null): void {
-    /* Task 5 覆盖 */
+  function setFocusedField(key: string | null): void {
+    focusedKey.value = key
   }
-  function applyRemoteScene(_msg: { radars?: Radar[]; jammers?: Jammer[] }): void {
-    /* Task 5 覆盖 */
+
+  function sameIds(a: { id: number }[], b: { id: number }[]): boolean {
+    const sa = a.map(e => e.id).sort((x, y) => x - y).join(',')
+    const sb = b.map(e => e.id).sort((x, y) => x - y).join(',')
+    return sa === sb
+  }
+
+  /** WS 广播合并：ID 集合变→整体替换；未变→逐字段合并（pending/focused 字段保留本地） */
+  function applyRemoteScene(msg: { radars?: Radar[]; jammers?: Jammer[] }): void {
+    const newRadars = msg.radars ?? radars.value
+    const newJammers = msg.jammers ?? jammers.value
+    if (!sameIds(radars.value, newRadars) || !sameIds(jammers.value, newJammers)) {
+      radars.value = [...newRadars]
+      jammers.value = [...newJammers]
+      return
+    }
+    const merge = <T extends { id: number }>(local: T, incoming: T, kind: EntityKind): T => {
+      const suffix = kind === 'jammer' ? 'j' : ''
+      const out: T = { ...incoming }
+      for (const key of Object.keys(incoming) as (keyof T & string)[]) {
+        if (key === 'id') continue
+        const pk = `${key}_${suffix}${local.id}`
+        if (pendingEdits.value.has(pk) || focusedKey.value === pk) {
+          out[key] = local[key]
+        }
+      }
+      return out
+    }
+    radars.value = radars.value.map(l => {
+      const inc = newRadars.find(r => r.id === l.id)
+      return inc ? merge(l, inc, 'radar') : l
+    })
+    jammers.value = jammers.value.map(l => {
+      const inc = newJammers.find(j => j.id === l.id)
+      return inc ? merge(l, inc, 'jammer') : l
+    })
   }
 
   return {

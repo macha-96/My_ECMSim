@@ -224,3 +224,56 @@ describe('scene store: 防抖同步 flushSync', () => {
     expect(vi.mocked(ElMessage.error)).toHaveBeenCalledWith('locked')
   })
 })
+
+describe('scene store: applyRemoteScene WS 合并', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.mocked(api.updateRadar).mockResolvedValue({ success: true })
+  })
+
+  it('ID 集合变化 → 整体替换（本地多余实体被丢弃）', () => {
+    const s = useSceneStore()
+    s.radars.push(radar(1), radar(2))
+    s.applyRemoteScene({ radars: [radar(2), { ...radar(2), id: 7 }], jammers: [] })
+    expect(s.radars.map(r => r.id)).toEqual([2, 7])
+  })
+
+  it('ID 不变 → 远端新值覆盖本地未编辑字段', () => {
+    const s = useSceneStore()
+    s.radars.push(radar(1))
+    const remote = { ...radar(1), Pt_dBm: 99, x: -4000 }
+    s.applyRemoteScene({ radars: [remote], jammers: [] })
+    expect(s.radars[0].Pt_dBm).toBe(99)
+    expect(s.radars[0].x).toBe(-4000)
+  })
+
+  it('pending 字段不被远端覆盖', () => {
+    const s = useSceneStore()
+    s.radars.push(radar(1))
+    s.updateField('radar', 1, 'Pt_dBm', 42) // pending: Pt_dBm_1
+    const remote = { ...radar(1), Pt_dBm: 99, G_dB: 30 }
+    s.applyRemoteScene({ radars: [remote], jammers: [] })
+    expect(s.radars[0].Pt_dBm).toBe(42) // 本地保留
+    expect(s.radars[0].G_dB).toBe(30) // 未编辑字段采用远端
+  })
+
+  it('focused 字段不被远端覆盖，失焦后可被覆盖', () => {
+    const s = useSceneStore()
+    s.jammers.push(jammer(1))
+    s.setFocusedField(pendingKey('jammer', 'Pj_dBm', 1))
+    s.applyRemoteScene({ jammers: [{ ...jammer(1), Pj_dBm: 5 }], radars: [] })
+    expect(s.jammers[0].Pj_dBm).toBe(40) // 本地保留
+    s.setFocusedField(null)
+    s.applyRemoteScene({ jammers: [{ ...jammer(1), Pj_dBm: 5 }], radars: [] })
+    expect(s.jammers[0].Pj_dBm).toBe(5)
+  })
+
+  it('jam_type 字段同样受 pending 保护', () => {
+    const s = useSceneStore()
+    s.jammers.push(jammer(1))
+    s.updateField('jammer', 1, 'jam_type', 'RANGE_DECEPT')
+    s.applyRemoteScene({ jammers: [{ ...jammer(1), jam_type: 'NOISE_JAM' }], radars: [] })
+    expect(s.jammers[0].jam_type).toBe('RANGE_DECEPT')
+  })
+})
