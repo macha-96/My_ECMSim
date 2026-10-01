@@ -5,6 +5,12 @@ from model.q_network import QNetwork
 from core.buffer import ReplayBuffer
 
 class DQNJammerAgent:
+    """Single-jammer DQN agent with coverage-aware state.
+
+    State: 13-dim vector = 9 base threat-weighted + 4 coverage features
+    Action: 21 = 7 power × 3 freq_shift (fixed, radar-count agnostic)
+    """
+
     def __init__(self, cfg):
         self.cfg = cfg
         self.device = cfg["device"]
@@ -31,6 +37,8 @@ class DQNJammerAgent:
 
         raw_state format: [radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
         Returns: np.array of shape (9,) — threat-weighted aggregated features
+
+        Note: Coverage features (dims 9-12) are appended by trainer.parse_state_with_coverage()
         """
         radar_count = int(raw_state[0])
         offset = 1
@@ -75,12 +83,20 @@ class DQNJammerAgent:
             jammer_pj, jammer_freq
         ], dtype=np.float32)
 
-    def choose_action(self, state_raw):
-        # Parse raw radar table into threat-weighted 9-dim vector
-        if isinstance(state_raw, (list, np.ndarray)):
-            state_np = self.parse_state(state_raw)
+    def choose_action(self, state):
+        """Select action via ε-greedy.
+
+        Args:
+            state: 13-dim numpy array (pre-parsed) or raw_state list
+        Returns:
+            action index (0-20)
+        """
+        if isinstance(state, (list, np.ndarray)) and len(state) == 13:
+            state_np = state
+        elif isinstance(state, (list, np.ndarray)):
+            state_np = self.parse_state(state)
         else:
-            state_np = state_raw
+            state_np = state
         # ε-greedy
         self.step_count += 1
         self.epsilon = max(self.epsilon_end, self.epsilon - 1 / self.epsilon_decay)

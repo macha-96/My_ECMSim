@@ -55,7 +55,7 @@ public:
     size_t getTotalJammerCount() const;
 
 private:
-    mutable std::mutex m_mtx;
+    mutable std::mutex m_mtx;   // 保证对scene的操作是线程安全的
     std::unordered_map<std::string, std::unique_ptr<SessionData>> m_sessions;
     std::atomic<uint64_t> m_counter{0};
 

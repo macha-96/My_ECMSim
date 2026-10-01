@@ -141,7 +141,7 @@ gRPC static libs: `libgrpc++.a libgrpc.a libgpr.a libprotobuf.a libupb_*.a libut
 
 Circular dependency handling: `-Wl,--start-group` / `-Wl,--end-group` wrapping all gRPC/absl libs.
 
-### HTTP REST API
+### HTTP RESTful API
 
 | Route | Method | Description |
 |-------|--------|-------------|
@@ -206,7 +206,7 @@ Frontend/Python → HTTP/gRPC → SceneManager modify data
                                 WebSocket push to session's frontend
 ```
 
-### DQN Data Flow (Multi-Radar)
+### DQN Data Flow (Multi-Radar, Multi-Jammer)
 
 ```
 Python agent → gRPC GetState → SceneManager.getStateForJammer()
@@ -217,9 +217,14 @@ Python agent → gRPC GetState → SceneManager.getStateForJammer()
                           Python DQNJammerAgent.parse_state()
                                     ↓
                           Computes threat weights w_i = 1/(dist_i+1)
+                                    ↓
                           Aggregates to 9-dim vector
                                     ↓
-                          QNetwork(state_dim=9) → action (power_dbm, jam_freq)
+                          Trainer appends 4 coverage features → 13-dim
+                                    ↓
+                          QNetwork(state_dim=13) → action (power_dbm, jam_freq)
+                                    ↓
+                          Trainer selects reference radar (nearest uncovered)
                                     ↓
                           gRPC ExecuteAction → Jammer updated
                                     ↓
@@ -249,22 +254,22 @@ uv pip install <依赖包的名字>
 ### Training
 
 ```bash
-python -m agents.dqn.script.train_agent --episodes=2000
-# or:
-python agents/dqn/script/train_agent.py --episodes=2000
+# Train with default 2 radars, 2 jammers
+python agents/dqn/script/train_agent.py --jammer-ids=1,2 --episodes=1000
+
+# Train with variable radar/jammer counts
+python agents/dqn/script/train_agent.py --jammer-ids=1,2,3 --num-radars=4 --num-jammers=3
 ```
 
-Model saved to `agents/dqn/weights/` (e.g. `dqn_jammer_final.pth`).
+Model saved to `agents/dqn/weights/` (e.g. `dqn_jammer_j1_final.pth`).
 
 ### Inference
 
 ```bash
-python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 --model=weights/dqn_jammer_final.pth --steps=5
+python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 --model=weights/dqn_jammer_j1_final.pth --steps=5
 ```
 
-### Multi-Radar Architecture
-
-在多雷达场景下，C++ 与 Python 的职责分工如下：
+### Multi-Radar Multi-Jammer Architecture
 
 **C++ 侧**（`scene_manager.cpp` / `sim_sence.cpp`）：`getStateForJammer` 返回原始雷达二维表（扁平化），不做任何聚合计算。
 
@@ -273,23 +278,29 @@ python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 --model=w
 - 每个雷达 7 个归一化特征：位置(rx/20000, ry/20000)、频率(freq/20e9)、带宽(bw/10e6)、功率(pt/1000)、距离(dist/30000)、频差(delta_f/10e9)
 - 干扰机 2 个特征：功率(pj/1000)、频率(freq/20e9)
 
-**Python 侧**（`agents/dqn/core/dqn_agent.py`）：`DQNJammerAgent.parse_state()` 解析原始雷达表，自行计算威胁加权。
+**Python 侧**（`agents/dqn/core/dqn_agent.py` + `agents/dqn/train/trainer.py`）：
 
-1. 解析 `radar_count` 和每个雷达的 7 维特征
-2. 计算威胁权重 `w_i = 1/(dist_i + 1)`（距离越近威胁越大）
-3. 聚合为固定 9 维向量送入 QNetwork：
-   - `[0-3]`：空间/功率的加权平均
-   - `[4-6]`：威胁最大雷达的频率、带宽、频差
-   - `[7-8]`：干扰机自身功率和频率
+1. `parse_state()` 解析原始雷达表，计算威胁加权 → 9 维向量
+2. `parse_state_with_coverage()` 追加 4 维覆盖特征 → 13 维状态
+3. 覆盖特征：`[uncovered_count_norm, nearest_uncovered_dist, nearest_uncovered_freq, nearest_uncovered_delta_f]`
+4. 动作映射使用动态参考雷达选择（最近未覆盖雷达）
 
-**优势**：每个智能体可以自定义威胁计算逻辑（如基于雷达类型、RCS 等），无需修改 C++ 代码或 QNetwork 结构。QNetwork 的 `state_dim=9` 和 `action_dim=21` 保持不变。
+**协调机制**：
+- 每个干扰机由独立 DQN 智能体控制
+- 覆盖感知状态让智能体自主学习分工策略
+- 冗余惩罚避免多个干扰机扎堆同一雷达
+- 支持任意数量的雷达和干扰机（状态维度固定为 13）
+
+**优势**：QNetwork 的 `state_dim=13` 和 `action_dim=21` 保持不变，模型可跨场景复用。
 
 ### Agent Communication Flow
 
 1. `GetState` — receives raw radar 2D table (radar_count + all radar features)
-2. `parse_state()` — Python agent computes threat weights → 9-dim vector
-3. `ExecuteAction` — sets jammer power (dBm) and frequency (Hz)
-4. `StepSimulation` — runs one simulation step, returns SINR/detection results
+2. `parse_state()` + `parse_state_with_coverage()` — Python agent computes threat weights + coverage → 13-dim vector
+3. `choose_action()` — DQN selects action (power, freq_shift)
+4. `index_to_action_with_coverage()` — maps action to (power_dbm, jam_freq) using nearest uncovered radar
+5. `ExecuteAction` — sets jammer power (dBm) and frequency (Hz)
+6. `StepSimulation` — runs one simulation step, returns SINR/detection results
 
 Reward calculation is done entirely in Python (not on the C++ server). The C++ server only provides raw scene data, action execution, and simulation primitives.
 
@@ -301,3 +312,8 @@ Reward calculation is done entirely in Python (not on the C++ server). The C++ s
 - `add_jammer()`, `update_jammer()`, `delete_jammer()`
 - `simulate()`, `get_state()`, `execute_action()`
 - `reset()` — no-op (session persists)
+
+### others
+
+1. 编写代码的时候可以适当添加一些注释，如果原来的代码有注释，除非变更相关代码，请不要删除随意删除这些注释
+2. C++代码保持现有的大括号不换行的风格

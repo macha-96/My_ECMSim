@@ -7,6 +7,13 @@ from utils.common import mkdir_if_not_exist
 
 
 class DQNTrainer:
+    """Multi-jammer DQN trainer with coverage-aware coordination.
+
+    Each jammer is controlled by an independent DQN agent. Coordination emerges
+    from coverage-aware state features + redundancy penalty in reward.
+    Supports variable numbers of radars and jammers.
+    """
+
     def __init__(self, cfg, client, jammer_ids):
         self.cfg = cfg
         self.client = client
@@ -31,7 +38,7 @@ class DQNTrainer:
         self.pd_threshold = 0.5
 
         self.freq_shift_num = cfg.get("freq_shift_num", 3)
-        self.freq_shift_mult = cfg.get("freq_shift_mult", 2.5)
+        self.freq_shift_mult = cfg.get("freq_shift_mult", 2500)
         self.ep = 0
 
     def index_to_action_with_freq(self, idx, actual_radar_freq, actual_radar_bw):
@@ -43,6 +50,41 @@ class DQNTrainer:
         freq_shift = (f_idx - center) * (actual_radar_bw * self.freq_shift_mult)
         jam_freq = actual_radar_freq + freq_shift
         return power_dbm, jam_freq
+
+    def index_to_action_with_coverage(self, idx, raw_state, state_np):
+        """Map action to (power_dbm, jam_freq, ref_freq) using coverage-aware reference.
+
+        Reference radar selection:
+        - If uncovered radars exist (state_np[9] > 0): use nearest uncovered radar
+        - Otherwise: use most threatening radar (state_np[4] = max_freq)
+        """
+        pn = self.cfg["power_level_num"]
+        p_idx = idx % pn
+        f_idx = idx // pn
+        power_dbm = p_idx * 10.0
+
+        radar_count = int(raw_state[0])
+        uncovered_count_norm = state_np[9] if len(state_np) > 9 else 0.0
+
+        if uncovered_count_norm > 0 and radar_count > 0:
+            # Use nearest uncovered radar frequency (from coverage features)
+            ref_freq = state_np[11] * 20e9  # nearest_uncovered_freq
+            # Find matching radar in raw_state for bandwidth
+            actual_radar_bw = 1e6
+            for i in range(radar_count):
+                offset = 1 + i * 7
+                if abs(raw_state[offset + 2] * 20e9 - ref_freq) < 1e6:
+                    actual_radar_bw = raw_state[offset + 3] * 10e6
+                    break
+        else:
+            # Use most threatening radar (max_freq from base state)
+            ref_freq = state_np[4] * 20e9 if len(state_np) > 4 else 10e9
+            actual_radar_bw = state_np[5] * 10e6 if len(state_np) > 5 else 1e6
+
+        center = self.freq_shift_num // 2
+        freq_shift = (f_idx - center) * (actual_radar_bw * self.freq_shift_mult)
+        jam_freq = ref_freq + freq_shift
+        return power_dbm, jam_freq, ref_freq
 
     def randomize_radar(self):
         try:
@@ -70,6 +112,51 @@ class DQNTrainer:
             if idx < len(zetas):
                 return zetas[idx]
         return 0.0
+
+    def parse_state_with_coverage(self, raw_state, results, jammer_id):
+        """Return 13-dim state: 9 base + 4 coverage features.
+
+        Coverage features: [uncovered_count_norm, nearest_uncovered_dist,
+                            nearest_uncovered_freq, nearest_uncovered_delta_f]
+        """
+        base = self.agents[jammer_id].parse_state(raw_state)
+
+        if not results:
+            return np.concatenate([base, [0.0, 0.0, 0.0, 0.0]]).astype(np.float32)
+
+        radar_count = int(raw_state[0])
+        pd_list = [self._pd_from_sinr(r.sinr_db) for r in results]
+        uncovered = [i for i, pd in enumerate(pd_list) if pd > self.pd_threshold]
+
+        if not uncovered or radar_count == 0:
+            return np.concatenate([base, [0.0, 0.0, 0.0, 0.0]]).astype(np.float32)
+
+        uncovered_count_norm = len(uncovered) / len(results)
+
+        # Find nearest uncovered radar using raw_state
+        jammer_freq = raw_state[-1] * 20e9
+        best_dist = float('inf')
+        best_freq = 0.0
+        best_delta = 0.0
+
+        for i in uncovered:
+            offset = 1 + i * 7
+            rx = raw_state[offset] * 20000
+            ry = raw_state[offset + 1] * 20000
+            freq = raw_state[offset + 2] * 20e9
+            dist = raw_state[offset + 5] * 30000
+
+            if dist < best_dist:
+                best_dist = dist
+                best_freq = freq
+                best_delta = (freq - jammer_freq) / 20e9
+
+        nearest_dist_norm = min(best_dist / 30000.0, 1.0)
+        nearest_freq_norm = min(best_freq / 20e9, 1.0)
+        nearest_delta_norm = max(-1.0, min(1.0, best_delta))
+
+        coverage = [uncovered_count_norm, nearest_dist_norm, nearest_freq_norm, nearest_delta_norm]
+        return np.concatenate([base, coverage]).astype(np.float32)
 
     def compute_reward(self, results, jammer_id, power_dbm):
         n = max(len(results), 1)
@@ -124,7 +211,7 @@ class DQNTrainer:
         states_np = {}
         for jid in self.jammer_ids:
             states_raw[jid] = self.client.get_state(jid)
-            states_np[jid] = self.agents[jid].parse_state(states_raw[jid])
+            states_np[jid] = self.parse_state_with_coverage(states_raw[jid], [], jid)
 
         total_rewards = {jid: 0.0 for jid in self.jammer_ids}
         step_log = []
@@ -132,22 +219,14 @@ class DQNTrainer:
         while step < 50:
             actions = {}
             for jid in self.jammer_ids:
-                act_idx = self.agents[jid].choose_action(states_raw[jid])
-                radar_count = int(states_raw[jid][0])
-                if radar_count > 0:
-                    offset = 1
-                    actual_radar_freq = states_raw[jid][offset + 2] * 20e9
-                    actual_radar_bw = states_raw[jid][offset + 3] * 10e6
-                else:
-                    actual_radar_freq = self.radar_freqs.get(jid, 10e9)
-                    actual_radar_bw = 1e6
-                power_dbm, jam_freq = self.index_to_action_with_freq(
-                    act_idx, actual_radar_freq, actual_radar_bw)
-                actions[jid] = (act_idx, power_dbm, jam_freq)
+                act_idx = self.agents[jid].choose_action(states_np[jid])
+                power_dbm, jam_freq, ref_freq = self.index_to_action_with_coverage(
+                    act_idx, states_raw[jid], states_np[jid])
+                actions[jid] = (act_idx, power_dbm, jam_freq, ref_freq)
 
             try:
                 for jid in self.jammer_ids:
-                    _, power_dbm, jam_freq = actions[jid]
+                    _, power_dbm, jam_freq, _ = actions[jid]
                     self.client.execute_action(jid, power_dbm, jam_freq)
                 results = self.client.step_simulation()
             except Exception as e:
@@ -160,10 +239,10 @@ class DQNTrainer:
             next_states_np = {}
             for jid in self.jammer_ids:
                 next_states_raw[jid] = self.client.get_state(jid)
-                next_states_np[jid] = self.agents[jid].parse_state(next_states_raw[jid])
+                next_states_np[jid] = self.parse_state_with_coverage(next_states_raw[jid], results, jid)
 
             for jid in self.jammer_ids:
-                act_idx, power_dbm, _ = actions[jid]
+                act_idx, power_dbm, _, _ = actions[jid]
                 reward = self.compute_reward(list(results), jid, power_dbm)
                 self.agents[jid].buffer.push(states_np[jid], act_idx, reward, next_states_np[jid], False)
                 self.agents[jid].update()

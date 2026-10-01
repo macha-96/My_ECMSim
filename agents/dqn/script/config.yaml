@@ -55,21 +55,28 @@ scene_jammers:
     jam_type: "NOISE_JAM"
 
 # State / action dimensions
-state_dim: 9
-action_dim: 21
+# state_dim = 9 (base threat-weighted) + 4 (coverage features)
+# Coverage features: [uncovered_count_norm, nearest_uncovered_dist, nearest_uncovered_freq, nearest_uncovered_delta_f]
+# Fixed size → works with unlimited radars
+state_dim: 13
+action_dim: 21         # 7 power × 3 freq_shift (fixed, radar-count agnostic)
 power_level_num: 7
 freq_shift_num: 3
+freq_shift_mult: 2500  # Cover ±2.5 GHz radar separation
 
-# ===== Multi-dimensional continuous reward (from optimize.md) =====
+# ===== Multi-dimensional continuous reward =====
 # Sigmoid: Pd = 1/(1+exp(-alpha*(SINR_dB - gamma)))
-# gamma approximates the radar detection threshold
 sigmoid_alpha: 0.5
 sigmoid_gamma: -50.0
 
-# Reward weights: R = wd*coverage + wf*freq_match - wred*dup - wp*(P_dBm/60)
+# Reward: R = wd*coverage + wf*freq_match - wred*dup - wp*power
+#   coverage:    mean(1-Pd) across all radars — rewards jamming ALL radars
+#   freq_match:  own frequency match — rewards precise jamming
+#   dup:         pileup penalty — discourages redundant jamming when others uncovered
+#   power:       power cost — discourages excessive power
 reward_weights:
-  wd: 1.0     # global coverage weight (mean of 1-Pd across all radars)
-  wf: 0.3     # own frequency match weight
-  wred: 0.5   # redundancy penalty weight (pileup on same radar while another uncovered)
-  wp: 0.01    # power penalty weight
+  wd: 1.0
+  wf: 0.3
+  wred: 0.5
+  wp: 0.01
   default: 0.1

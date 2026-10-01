@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """DQN training entry point — connects via gRPC to C++ backend.
 
+Supports variable numbers of radars and jammers. Each jammer is controlled
+by an independent DQN agent with coverage-aware coordination.
+
 Usage:
-  python3 script/train.py --radar-id=1 --jammer-id=1 --episodes=50
-  python3 script/train.py --radar-id=1 --jammer-id=1 --http-target=http://localhost:8080
+  python3 script/train_agent.py --jammer-ids=1,2 --episodes=1000
+  python3 script/train_agent.py --jammer-ids=1,2 --num-radars=3 --num-jammers=2
+  python3 script/train_agent.py --session-id=session_1 --jammer-ids=1,2
 """
 import sys, os, time, argparse, requests, yaml, numpy as np
 import logging
@@ -24,7 +28,7 @@ def load_config(path = None):
         return yaml.safe_load(f)
 
 
-def setup_scene(cfg, http_target, grpc_target, max_retries=3):
+def setup_scene(cfg, http_target, grpc_target, num_radars=None, num_jammers=None, max_retries=3):
     for attempt in range(max_retries):
         try:
             r = requests.post(f"{http_target}/api/scene", json={}, timeout=10)
@@ -32,12 +36,22 @@ def setup_scene(cfg, http_target, grpc_target, max_retries=3):
             if not d.get("success"):
                 raise RuntimeError(f"create session failed: {d}")
             sid = d["session_id"]
-            for rc in cfg["scene_radars"]:
+
+            import random
+            radars = cfg["scene_radars"]
+            jammers = cfg["scene_jammers"]
+
+            if num_radars is not None:
+                radars = random.sample(radars, min(num_radars, len(radars)))
+            if num_jammers is not None:
+                jammers = random.sample(jammers, min(num_jammers, len(jammers)))
+
+            for rc in radars:
                 rr = requests.post(f"{http_target}/api/radars",
                     json={"session_id": sid, "radar": rc}, timeout=10)
                 if not rr.json().get("success"):
                     logging.warning(f"radar R{rc['id']} failed: {rr.text}")
-            for jc in cfg["scene_jammers"]:
+            for jc in jammers:
                 rr = requests.post(f"{http_target}/api/jammers",
                     json={"session_id": sid, "jammer": jc}, timeout=10)
                 if not rr.json().get("success"):
@@ -59,6 +73,10 @@ def parse_args():
     p.add_argument("--radar-id", type = int, default = 1)
     p.add_argument("--jammer-ids", default = "1,2",
                    help="Comma-separated jammer IDs to train (e.g. '1,2')")
+    p.add_argument("--num-radars", type = int, default = None,
+                   help="Number of radars to use (random subset)")
+    p.add_argument("--num-jammers", type = int, default = None,
+                   help="Number of jammers to use (random subset)")
     p.add_argument("--episodes", type = int, default = None)
     p.add_argument("--http-target", default = None)
     p.add_argument("--grpc-target", default = None)
@@ -112,7 +130,7 @@ def main():
         # 创建新会话 + 添加雷达/干扰机
         logging.info("creating new session with radars and jammers")
         try:
-            client = setup_scene(cfg, http_t, grpc_t)
+            client = setup_scene(cfg, http_t, grpc_t, args.num_radars, args.num_jammers)
         except Exception as e:
             logging.error(f"setup failed: {e}")
             sys.exit(1)
