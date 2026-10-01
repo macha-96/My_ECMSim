@@ -179,4 +179,48 @@ describe('scene store: 防抖同步 flushSync', () => {
     await p
     expect(s.syncing).toBe(false)
   })
+
+  it('flushSync 直接调用：上送失败返回 false 保留 pending，且不触碰无 pending 实体', async () => {
+    vi.mocked(api.updateRadar).mockResolvedValue({ success: false, error: 'locked' })
+    const { ElMessage } = await import('element-plus')
+    const s = await storeWithEntities()
+    s.updateField('radar', 1, 'Pt_dBm', 30)
+
+    const ok = await s.flushSync()
+
+    expect(ok).toBe(false)
+    expect(s.pendingEdits.has('Pt_dBm_1')).toBe(true)
+    expect(s.dirtyCount).toBe(1)
+    expect(vi.mocked(ElMessage.error)).toHaveBeenCalledWith('locked')
+    expect(api.updateJammer).not.toHaveBeenCalled()
+  })
+
+  it('flushSync 上送抛异常：不抛出、返回 false、保留 pending', async () => {
+    vi.mocked(api.updateRadar).mockRejectedValue(new Error('net down'))
+    const { ElMessage } = await import('element-plus')
+    const s = await storeWithEntities()
+    s.updateField('radar', 1, 'Pt_dBm', 30)
+
+    const ok = await s.flushSync()
+
+    expect(ok).toBe(false)
+    expect(s.pendingEdits.has('Pt_dBm_1')).toBe(true)
+    expect(vi.mocked(ElMessage.error)).toHaveBeenCalledWith('net down')
+  })
+
+  it('混合场景：雷达失败不阻断干扰机上送，各自 pending 独立清理', async () => {
+    vi.mocked(api.updateRadar).mockResolvedValue({ success: false, error: 'locked' })
+    const { ElMessage } = await import('element-plus')
+    const s = await storeWithEntities()
+    s.updateField('radar', 1, 'Pt_dBm', 30)
+    s.updateField('jammer', 1, 'Pj_dBm', 55)
+
+    const ok = await s.flushSync()
+
+    expect(ok).toBe(false)
+    expect(s.pendingEdits.has('Pt_dBm_1')).toBe(true)
+    expect(s.pendingEdits.has('Pj_dBm_j1')).toBe(false)
+    expect(api.updateJammer).toHaveBeenCalledWith('sess-1', expect.objectContaining({ id: 1, Pj_dBm: 55 }))
+    expect(vi.mocked(ElMessage.error)).toHaveBeenCalledWith('locked')
+  })
 })
