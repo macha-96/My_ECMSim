@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Jammer, Radar } from '../types/api'
 import * as api from '../api/scene'
@@ -110,5 +110,73 @@ describe('scene store: CRUD 与 updateField', () => {
     const s = useSceneStore()
     s.pulseEntity('jammer', 2)
     expect(s.pulsed).toMatchObject({ kind: 'jammer', id: 2 })
+  })
+})
+
+describe('scene store: 防抖同步 flushSync', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.mocked(api.createSession).mockResolvedValue({ success: true, session_id: 'sess-1' })
+    vi.mocked(api.fetchSceneConfig).mockResolvedValue({ success: true, radars: [], jammers: [] })
+    vi.mocked(api.updateRadar).mockResolvedValue({ success: true })
+    vi.mocked(api.updateJammer).mockResolvedValue({ success: true })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function storeWithEntities() {
+    const s = useSceneStore()
+    await s.initSession()
+    s.radars.push(radar(1))
+    s.jammers.push(jammer(1))
+    return s
+  }
+
+  it('updateField 后 300ms 只上送一次且带上最新值', async () => {
+    const s = await storeWithEntities()
+    s.updateField('radar', 1, 'Pt_dBm', 30)
+    s.updateField('radar', 1, 'x', 1234)
+    s.updateField('jammer', 1, 'Pj_dBm', 55)
+    expect(api.updateRadar).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(300)
+
+    expect(api.updateRadar).toHaveBeenCalledTimes(1)
+    expect(api.updateRadar).toHaveBeenCalledWith('sess-1', expect.objectContaining({ id: 1, Pt_dBm: 30, x: 1234 }))
+    expect(api.updateJammer).toHaveBeenCalledTimes(1)
+    expect(api.updateJammer).toHaveBeenCalledWith('sess-1', expect.objectContaining({ id: 1, Pj_dBm: 55 }))
+    expect(s.pendingEdits.size).toBe(0)
+    expect(s.dirtyCount).toBe(0)
+  })
+
+  it('上送失败保留 pending 并弹错误', async () => {
+    vi.mocked(api.updateRadar).mockResolvedValue({ success: false, error: 'locked' })
+    const { ElMessage } = await import('element-plus')
+    const s = await storeWithEntities()
+    s.updateField('radar', 1, 'Pt_dBm', 30)
+    await vi.advanceTimersByTimeAsync(300)
+
+    expect(s.pendingEdits.has('Pt_dBm_1')).toBe(true)
+    expect(vi.mocked(ElMessage.error)).toHaveBeenCalledWith('locked')
+  })
+
+  it('flushSync 无 pending 时直接返回 true 不调 API', async () => {
+    const s = await storeWithEntities()
+    const ok = await s.flushSync()
+    expect(ok).toBe(true)
+    expect(api.updateRadar).not.toHaveBeenCalled()
+  })
+
+  it('flushSync 调用期间 syncing 为 true', async () => {
+    const s = await storeWithEntities()
+    s.updateField('radar', 1, 'x', 5)
+    const p = s.flushSync()
+    expect(s.syncing).toBe(true)
+    await p
+    expect(s.syncing).toBe(false)
   })
 })

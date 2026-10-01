@@ -118,13 +118,61 @@ export const useSceneStore = defineStore('scene', () => {
     pulsed.value = { kind, id, at: Date.now() }
   }
 
-  // —— 占位：Task 4 用真实实现替换 scheduleSync/flushSync ——
+  let syncTimer: ReturnType<typeof setTimeout> | null = null
+
+  /** 300ms 防抖：滑杆连续拖动只触发一次按实体批量上送 */
   function scheduleSync(): void {
-    /* Task 4 覆盖 */
+    if (syncTimer) clearTimeout(syncTimer)
+    syncTimer = setTimeout(() => {
+      syncTimer = null
+      void flushSync()
+    }, 300)
   }
+
+  /** 按实体分组上送 pending 字段；成功清该实体 pending，失败保留并提示 */
   async function flushSync(): Promise<boolean> {
-    /* Task 4 覆盖 */
-    return true
+    if (!sessionId.value || pendingEdits.value.size === 0) return true
+    syncing.value = true
+    try {
+      let allOk = true
+      for (const r of radars.value) {
+        const idStr = String(r.id)
+        const keys = [...pendingEdits.value].filter(k => suffixOf(k) === idStr)
+        if (keys.length === 0) continue
+        try {
+          const resp = await api.updateRadar(sessionId.value, r)
+          if (resp.success) {
+            for (const k of keys) pendingEdits.value.delete(k)
+          } else {
+            allOk = false
+            ElMessage.error(resp.error || `雷达 R${r.id} 更新失败`)
+          }
+        } catch (e) {
+          allOk = false
+          ElMessage.error(errText(e))
+        }
+      }
+      for (const j of jammers.value) {
+        const suffix = `j${j.id}`
+        const keys = [...pendingEdits.value].filter(k => suffixOf(k) === suffix)
+        if (keys.length === 0) continue
+        try {
+          const resp = await api.updateJammer(sessionId.value, j)
+          if (resp.success) {
+            for (const k of keys) pendingEdits.value.delete(k)
+          } else {
+            allOk = false
+            ElMessage.error(resp.error || `干扰机 J${j.id} 更新失败`)
+          }
+        } catch (e) {
+          allOk = false
+          ElMessage.error(errText(e))
+        }
+      }
+      return allOk
+    } finally {
+      syncing.value = false
+    }
   }
   // —— 占位：Task 5 用真实实现替换 applyRemoteScene/setFocusedField ——
   function setFocusedField(_key: string | null): void {
