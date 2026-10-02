@@ -8,7 +8,8 @@ const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 let ro: ResizeObserver | null = null
 
-const SERIES_COLORS = ['var(--radar-color)', '#e94560', '#00e5ff', '#ff7a59', '#69f0ae']
+// 首色为 style.css 的 --radar-color 字面值（zrender 不解析 var()，必须写字面 hex）
+const SERIES_COLORS = ['#2ee6a8', '#e94560', '#00e5ff', '#ff7a59', '#69f0ae']
 
 const hasData = computed(() => sim.history.length > 0)
 
@@ -81,7 +82,8 @@ function render(): void {
     chart = echarts.init(el)
     ro?.observe(el) // 懒创建晚于挂载时补观察，保证 resize 自适应
   }
-  chart.setOption(buildOption())
+  // notMerge 整体替换：雷达数量变化时旧 series 不残留
+  chart.setOption(buildOption(), true)
 }
 
 onMounted(() => {

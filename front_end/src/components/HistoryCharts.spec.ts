@@ -62,4 +62,16 @@ describe('HistoryCharts', () => {
     w.unmount()
     expect(inst.dispose).toHaveBeenCalled()
   })
+
+  it('系列色为字面 hex（zrender 不解析 var()）', async () => {
+    const { useSimulationStore } = await import('../stores/simulation')
+    const sim = useSimulationStore()
+    sim.history.push({ labels: [1], sinr: [0], zeta: [1] })
+    const w = mount(HistoryCharts, { attachTo: document.body })
+    await w.vm.$nextTick()
+    const opt = setOption.mock.calls[0][0] as { series: { itemStyle: { color: string } }[] }
+    expect(opt.series[0].itemStyle.color).toMatch(/^#[0-9a-fA-F]{6}$/)
+    expect(opt.series[0].itemStyle.color).not.toContain('var(')
+    w.unmount()
+  })
 })
