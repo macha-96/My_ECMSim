@@ -8,6 +8,7 @@ import ControlPanel from './components/ControlPanel.vue'
 import ResultPanel from './components/ResultPanel.vue'
 import HistoryCharts from './components/HistoryCharts.vue'
 import BottomDrawer from './components/BottomDrawer.vue'
+import SplitBar from './components/SplitBar.vue'
 import { useSceneStore } from './stores/scene'
 import { createWebSocketController, type WsStatus } from './composables/useWebSocket'
 import { errText } from './api/http'
@@ -31,7 +32,6 @@ const ws = createWebSocketController({
   },
 })
 
-const drawerTab = ref('result')
 const connectedSid = ref<string | null>(null)
 
 function connectWs(sid: string): void {
@@ -48,10 +48,6 @@ watch(
     if (sid) connectWs(sid)
   },
 )
-const drawerTabs = [
-  { key: 'result', label: '仿真结果' },
-  { key: 'charts', label: '历史图表' },
-]
 const canvasHeight = ref(560)
 
 function measureCanvas(): void {
@@ -79,16 +75,30 @@ onBeforeUnmount(() => window.removeEventListener('resize', measureCanvas))
   <div class="app-shell">
     <AppHeader :ws-status="wsStatus" :session-id="scene.sessionId" />
     <main class="main">
-      <section class="stage glass-panel">
-        <SceneCanvas :height="canvasHeight" />
-      </section>
-      <aside class="side glass-panel">
-        <ControlPanel />
-      </aside>
+      <SplitBar
+        direction="horizontal"
+        fixed-pane="b"
+        :min-a="320"
+        :min-b="240"
+        :max-fixed="480"
+        storage-key="ecmsim.sideW"
+        :default-value="300"
+      >
+        <template #a>
+          <section class="stage glass-panel">
+            <SceneCanvas :height="canvasHeight" />
+          </section>
+        </template>
+        <template #b>
+          <aside class="side glass-panel">
+            <ControlPanel />
+          </aside>
+        </template>
+      </SplitBar>
     </main>
-    <BottomDrawer v-model="drawerTab" :tabs="drawerTabs">
-      <template #result><ResultPanel /></template>
-      <template #charts><HistoryCharts /></template>
+    <BottomDrawer>
+      <template #left><ResultPanel /></template>
+      <template #right><HistoryCharts /></template>
     </BottomDrawer>
     <StatusBar />
   </div>
@@ -102,5 +112,5 @@ onBeforeUnmount(() => window.removeEventListener('resize', measureCanvas))
   min-height: 0;
 }
 .stage { flex: 1; min-width: 0; overflow: hidden; }
-.side { width: 300px; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
+.side { flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
 </style>
