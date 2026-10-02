@@ -112,5 +112,5 @@ onBeforeUnmount(() => window.removeEventListener('resize', measureCanvas))
   min-height: 0;
 }
 .stage { flex: 1; min-width: 0; overflow: hidden; }
-.side { flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
+.side { flex: 1; min-height: 0; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
 </style>
