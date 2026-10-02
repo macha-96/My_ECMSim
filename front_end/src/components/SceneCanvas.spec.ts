@@ -94,6 +94,32 @@ describe('SceneCanvas', () => {
     expect(scene.radars[0].x).not.toBe(5000)
   })
 
+  it('首绘前的命中几何以世界原点为中心', () => {
+    const { wrapper, scene, radar } = setup()
+    const canvas = wrapper.find('canvas').element as HTMLCanvasElement
+    stubCanvasSize(canvas)
+    // 不冲刷 rAF：直接在首绘前派发 — 初始视口必须与 draw() 同为原点居中
+    const t = makeTransform(computeViewport(800, 600), 800, 600)
+    const p = t.toScreen(radar.x, radar.y)
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { clientX: p.sx, clientY: p.sy, pointerId: 1, bubbles: true }))
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: p.sx + 20, clientY: p.sy, pointerId: 1, bubbles: true }))
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: p.sx + 20, clientY: p.sy, pointerId: 1, bubbles: true }))
+    expect(scene.pendingEdits.size).toBeGreaterThan(0)
+    expect(scene.radars[0].x).not.toBe(5000)
+  })
+
+  it('首绘后位图尺寸同步为实测画布尺寸', async () => {
+    stubCanvas()
+    const wrapper = mount(SceneCanvas, { props: { height: 600 }, attachTo: document.body })
+    const canvas = wrapper.find('canvas').element as HTMLCanvasElement
+    // jsdom 无布局 → stub clientWidth=800；draw 须把位图从 HTML 默认 300 同步为 800
+    stubCanvasSize(canvas)
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    expect(canvas.width).toBe(800)
+    expect(canvas.height).toBe(600)
+    expect(canvas.width).toBeGreaterThan(0)
+  })
+
   it('空场景 pointerdown 不产生 pending', async () => {
     stubCanvas()
     const wrapper = mount(SceneCanvas, { props: { height: 600 }, attachTo: document.body })

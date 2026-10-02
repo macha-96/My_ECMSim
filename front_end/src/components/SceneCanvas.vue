@@ -12,10 +12,11 @@ const sim = useSimulationStore()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const hover = ref<{ kind: EntityKind; id: number; x: number; y: number; sx: number; sy: number } | null>(null)
 
-let viewport: Viewport = { x: -1500, y: -1500, w: 30000, h: 30000 }
 // 画布尺寸以 clientWidth/clientHeight 为准（draw 内更新），props.height 仅作初始/回退值
 let canvasW = 800
 let canvasH = props.height
+// 初始视口即以世界原点为中心，首绘前的命中几何与 draw() 保持一致
+let viewport: Viewport = computeViewport(canvasW, canvasH)
 let lastW = 0
 let lastH = 0
 let rafId = 0
@@ -44,6 +45,9 @@ function draw(): void {
     lastW = w
     lastH = h
     viewport = computeViewport(canvasW, canvasH)
+    // 同步位图：ctx 以实测尺寸为界绘制，位图不随动则右侧被裁剪、视觉拉伸
+    canvas.width = canvasW
+    canvas.height = canvasH
   }
   const t = makeTransform(viewport, canvasW, canvasH)
 
