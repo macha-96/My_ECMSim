@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import AppHeader from './components/AppHeader.vue'
 import StatusBar from './components/StatusBar.vue'
@@ -32,6 +32,22 @@ const ws = createWebSocketController({
 })
 
 const drawerTab = ref('result')
+const connectedSid = ref<string | null>(null)
+
+function connectWs(sid: string): void {
+  if (connectedSid.value === sid) return
+  connectedSid.value = sid
+  ws.connect(sid)
+}
+
+// reset() 会删除旧 session 并 initSession 出新 sessionId：socket 必须跟随切换，
+// 否则停留在已删除 session 上收不到广播。connect() 内部已干净关闭旧 socket。
+watch(
+  () => scene.sessionId,
+  sid => {
+    if (sid) connectWs(sid)
+  },
+)
 const drawerTabs = [
   { key: 'result', label: '仿真结果' },
   { key: 'charts', label: '历史图表' },
@@ -48,7 +64,7 @@ onMounted(async () => {
   try {
     await scene.initSession()
     await scene.fetchScene()
-    if (scene.sessionId) ws.connect(scene.sessionId)
+    if (scene.sessionId) connectWs(scene.sessionId)
   } catch (e) {
     ElMessage.error(errText(e))
   }

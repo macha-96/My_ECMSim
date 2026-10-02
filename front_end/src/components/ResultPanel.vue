@@ -39,7 +39,7 @@ onMounted(() => {
   <div class="result-panel">
     <div class="controls">
       <button class="btn primary" :disabled="runDisabled" :class="{ loading: sim.running }" @click="sim.run()">
-        运行仿真
+        {{ sim.running ? '仿真中…' : '运行仿真' }}
       </button>
       <button class="btn" @click="sim.reset()">重置场景</button>
       <label class="auto">

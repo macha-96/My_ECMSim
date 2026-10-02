@@ -48,7 +48,7 @@ describe('ResultPanel', () => {
     expect(btns.some(b => b.text().includes('运行仿真'))).toBe(true)
   })
 
-  it('running 时运行按钮 disabled', async () => {
+  it('running 时运行按钮 disabled 且显示仿真中', async () => {
     const { useSceneStore } = await import('../stores/scene')
     const scene = useSceneStore()
     scene.sessionId = 'sess-1'
@@ -56,7 +56,9 @@ describe('ResultPanel', () => {
     sim.running = true
     const w = mount(ResultPanel)
     await w.vm.$nextTick()
-    const runBtn = w.findAll('button').find(b => b.text().includes('运行仿真'))
+    // 运行时标签切换为 ternary 的 running 分支（见 ResultPanel.vue）
+    const runBtn = w.findAll('button').find(b => b.text().includes('仿真中'))
+    expect(runBtn).toBeDefined()
     expect(runBtn?.attributes('disabled')).toBeDefined()
   })
 })

@@ -132,14 +132,24 @@ function hitPoints() {
   ]
 }
 
+function hitRadius(): number {
+  try {
+    return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches ? 28 : 12
+  } catch {
+    return 12 // jsdom 等无 matchMedia 环境默认细指针半径
+  }
+}
+
 function onPointerDown(ev: PointerEvent): void {
   const { x, y } = localPos(ev)
-  const hit = hitTest(x, y, hitPoints())
+  const hit = hitTest(x, y, hitPoints(), hitRadius())
   const canvas = canvasRef.value
   // jsdom 未实现 setPointerCapture — 可选调用兜底
   canvas?.setPointerCapture?.(ev.pointerId)
   if (hit) {
     dragging = hit
+    hover.value = null // 拖拽开始即隐藏 hover，避免提示停留在旧位置
     if (canvas) canvas.style.cursor = 'grabbing'
   } else {
     panning = { startX: x, startY: y, vpX: viewport.x, vpY: viewport.y }
@@ -161,7 +171,7 @@ function onPointerMove(ev: PointerEvent): void {
       y: panning.vpY + (y - panning.startY) / t.scale,
     }
   } else {
-    const hit = hitTest(x, y, hitPoints())
+    const hit = hitTest(x, y, hitPoints(), hitRadius())
     const canvas = canvasRef.value
     if (hit) {
       const ent = hit.kind === 'radar'
@@ -185,6 +195,7 @@ function onPointerUp(ev: PointerEvent): void {
   if (dragging) scene.pulseEntity(dragging.kind, dragging.id)
   dragging = null
   panning = null
+  if (canvasRef.value) canvasRef.value.style.cursor = 'crosshair'
   canvasRef.value?.releasePointerCapture?.(ev.pointerId)
   scheduleDraw()
 }
