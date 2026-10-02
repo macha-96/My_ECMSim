@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import AppHeader from './components/AppHeader.vue'
 import StatusBar from './components/StatusBar.vue'
+import SceneCanvas from './components/SceneCanvas.vue'
+import ControlPanel from './components/ControlPanel.vue'
+import ResultPanel from './components/ResultPanel.vue'
+import HistoryCharts from './components/HistoryCharts.vue'
+import BottomDrawer from './components/BottomDrawer.vue'
 import { useSceneStore } from './stores/scene'
 import { createWebSocketController, type WsStatus } from './composables/useWebSocket'
 import { errText } from './api/http'
@@ -26,6 +31,19 @@ const ws = createWebSocketController({
   },
 })
 
+const drawerTab = ref('result')
+const drawerTabs = [
+  { key: 'result', label: '仿真结果' },
+  { key: 'charts', label: '历史图表' },
+]
+const canvasHeight = ref(560)
+
+function measureCanvas(): void {
+  // main 区高度 - 抽屉高度(约) → 由 CSS flex 自然处理，canvas 高度取其容器实测
+  const el = document.querySelector('.stage') as HTMLElement | null
+  if (el) canvasHeight.value = Math.max(240, el.clientHeight - 16)
+}
+
 onMounted(async () => {
   try {
     await scene.initSession()
@@ -34,32 +52,39 @@ onMounted(async () => {
   } catch (e) {
     ElMessage.error(errText(e))
   }
+  measureCanvas()
+  window.addEventListener('resize', measureCanvas)
 })
+
+onBeforeUnmount(() => window.removeEventListener('resize', measureCanvas))
 </script>
 
 <template>
   <div class="app-shell">
     <AppHeader :ws-status="wsStatus" :session-id="scene.sessionId" />
     <main class="main">
-      <div class="stage glass-panel">
-        <!-- Task 11–15 逐步填充：画布 / 控制面板 / 抽屉 -->
-        <p class="placeholder">场景画布（Task 11 接入）</p>
-      </div>
+      <section class="stage glass-panel">
+        <SceneCanvas :height="canvasHeight" />
+      </section>
+      <aside class="side glass-panel">
+        <ControlPanel />
+      </aside>
     </main>
+    <BottomDrawer v-model="drawerTab" :tabs="drawerTabs">
+      <template #result><ResultPanel /></template>
+      <template #charts><HistoryCharts /></template>
+    </BottomDrawer>
     <StatusBar />
   </div>
 </template>
 
 <style scoped>
-.stage {
-  flex: 1;
+.main {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
   min-height: 0;
-  margin: 0 8px;
-  display: grid;
-  place-items: center;
 }
-.placeholder {
-  color: var(--text-2);
-  font-size: 13px;
-}
+.stage { flex: 1; min-width: 0; overflow: hidden; }
+.side { width: 300px; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
 </style>
