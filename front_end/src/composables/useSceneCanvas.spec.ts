@@ -17,6 +17,15 @@ describe('computeViewport / makeTransform', () => {
     expect(vp.x + vp.w / 2).toBeCloseTo(0)
   })
 
+  it('竖屏画布保证 30000m 可见（视口变高）、保持宽高比', () => {
+    const vp = computeViewport(800, 1600)
+    expect(vp.h).toBeGreaterThanOrEqual(30000)
+    expect(vp.w).toBeGreaterThanOrEqual(30000)
+    expect(vp.w / vp.h).toBeCloseTo(0.5)
+    expect(vp.x + vp.w / 2).toBeCloseTo(0)
+    expect(vp.y + vp.h / 2).toBeCloseTo(0)
+  })
+
   it('worldToScreen 与 screenToWorld 互逆', () => {
     const vp = DEFAULT_VIEWPORT
     const t = makeTransform(vp, 800, 600)
@@ -46,6 +55,19 @@ describe('hitTest', () => {
   it('命中半径内返回最近实体', () => {
     expect(hitTest(110, 100, pts)).toEqual({ kind: 'radar', id: 1 })
     expect(hitTest(128, 100, pts)).toEqual({ kind: 'jammer', id: 2 })
+  })
+
+  it('多目标均在半径内时取最近者（而非先到先得）', () => {
+    // radar d=18、jammer d=12 均在 radius=20 内：最近者是 jammer
+    expect(hitTest(118, 100, pts, 20)).toEqual({ kind: 'jammer', id: 2 })
+    // d=14 超出默认 12px 但仍在自定义 radius=20 内：证明半径参数生效
+    expect(hitTest(114, 100, pts, 20)).toEqual({ kind: 'radar', id: 1 })
+  })
+
+  it('默认半径为 12px（11px 内命中、13px 之外不命中）', () => {
+    const pts2 = [{ kind: 'radar' as const, id: 9, sx: 0, sy: 0 }]
+    expect(hitTest(11, 0, pts2)).toEqual({ kind: 'radar', id: 9 })
+    expect(hitTest(13, 0, pts2)).toBeNull()
   })
 
   it('半径外返回 null', () => {
