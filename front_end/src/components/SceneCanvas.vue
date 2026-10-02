@@ -16,6 +16,8 @@ let viewport: Viewport = { x: -1500, y: -1500, w: 30000, h: 30000 }
 // 画布尺寸以 clientWidth/clientHeight 为准（draw 内更新），props.height 仅作初始/回退值
 let canvasW = 800
 let canvasH = props.height
+let lastW = 0
+let lastH = 0
 let rafId = 0
 let dragging: { kind: EntityKind; id: number } | null = null
 let panning: { startX: number; startY: number; vpX: number; vpY: number } | null = null
@@ -33,9 +35,16 @@ function draw(): void {
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  canvasW = canvas.clientWidth || canvas.width
-  canvasH = canvas.clientHeight || props.height
-  viewport = computeViewport(canvasW, canvasH)
+  const w = canvas.clientWidth || canvas.width
+  const h = canvas.clientHeight || props.height
+  // 仅尺寸变化时重置视口：数据驱动的重绘不得覆盖用户平移
+  if (w !== lastW || h !== lastH) {
+    canvasW = w
+    canvasH = h
+    lastW = w
+    lastH = h
+    viewport = computeViewport(canvasW, canvasH)
+  }
   const t = makeTransform(viewport, canvasW, canvasH)
 
   ctx.clearRect(0, 0, canvasW, canvasH)

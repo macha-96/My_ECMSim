@@ -73,6 +73,27 @@ describe('SceneCanvas', () => {
     expect(scene.radars[0].x).not.toBe(5000) // 已被拖动更新
   })
 
+  it('pointerdown 未命中可平移视口，平移在重绘后保持', async () => {
+    const { wrapper, scene, radar } = setup()
+    const canvas = wrapper.find('canvas').element as HTMLCanvasElement
+    stubCanvasSize(canvas)
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    const t = makeTransform(computeViewport(800, 600), 800, 600)
+    const p = t.toScreen(radar.x, radar.y)
+    // 空白处按下 → 右拖 100px 平移视口（内容右移 100px）
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { clientX: 400, clientY: 300, pointerId: 1, bubbles: true }))
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 500, clientY: 300, pointerId: 1, bubbles: true }))
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 500, clientY: 300, pointerId: 1, bubbles: true }))
+    // 冲刷 rAF：平移触发的重绘不得把视口重置回默认（否则平移一帧即回弹）
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    // 雷达屏幕坐标应随视口右移 100px → 在新位置命中并拖动
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { clientX: p.sx + 100, clientY: p.sy, pointerId: 1, bubbles: true }))
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: p.sx + 120, clientY: p.sy, pointerId: 1, bubbles: true }))
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: p.sx + 120, clientY: p.sy, pointerId: 1, bubbles: true }))
+    expect(scene.pendingEdits.size).toBeGreaterThan(0)
+    expect(scene.radars[0].x).not.toBe(5000)
+  })
+
   it('空场景 pointerdown 不产生 pending', async () => {
     stubCanvas()
     const wrapper = mount(SceneCanvas, { props: { height: 600 }, attachTo: document.body })
