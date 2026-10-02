@@ -13,12 +13,13 @@ const wsStatus = ref<WsStatus>('connecting')
 
 const ws = createWebSocketController({
   onMessage: data => {
+    let msg: { radars?: Radar[]; jammers?: Jammer[] }
     try {
-      const msg = JSON.parse(data) as { radars?: Radar[]; jammers?: Jammer[] }
-      if (msg && (msg.radars || msg.jammers)) scene.applyRemoteScene(msg)
+      msg = JSON.parse(data)
     } catch {
-      /* 非 JSON 心跳等消息忽略 */
+      return // 非 JSON 心跳等消息忽略
     }
+    if (msg && (msg.radars || msg.jammers)) scene.applyRemoteScene(msg)
   },
   onStatus: s => {
     wsStatus.value = s
