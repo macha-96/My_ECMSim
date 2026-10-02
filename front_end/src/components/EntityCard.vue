@@ -3,8 +3,8 @@ import { computed, onBeforeUnmount, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 // 局部注册表单组件：测试环境未挂载 app.use(ElementPlus)，且 spec 用 vi.mock 截获
 // element-plus 根入口 —— 走子路径导入不受 mock 影响，保证测试与应用渲染一致
-import ElSlider from 'element-plus/es/components/slider/index'
 import { ElOption, ElSelect } from 'element-plus/es/components/select/index'
+import KnobControl from './KnobControl.vue'
 import type { EntityKind, Jammer } from '../types/api'
 import { pendingKey, useSceneStore } from '../stores/scene'
 
@@ -31,8 +31,8 @@ interface FieldSpec {
 }
 
 const radarFields: FieldSpec[] = [
-  { prop: 'x', label: 'X', min: 0, max: 20000, step: 100, unit: 'm' },
-  { prop: 'y', label: 'Y', min: 0, max: 20000, step: 100, unit: 'm' },
+  { prop: 'x', label: 'X', min: -20000, max: 20000, step: 100, unit: 'm' },
+  { prop: 'y', label: 'Y', min: -20000, max: 20000, step: 100, unit: 'm' },
   { prop: 'Pt_dBm', label: '功率', min: -20, max: 60, step: 1, unit: 'dBm' },
   { prop: 'G_dB', label: '增益', min: 0, max: 40, step: 1, unit: 'dB' },
   { prop: 'freq', label: '频率', min: 8, max: 18, step: 0.001, unit: 'GHz', toDisplay: v => v / 1e9, toStorage: v => v * 1e9 },
@@ -42,8 +42,8 @@ const radarFields: FieldSpec[] = [
 ]
 
 const jammerFields: FieldSpec[] = [
-  { prop: 'x', label: 'X', min: 0, max: 20000, step: 100, unit: 'm' },
-  { prop: 'y', label: 'Y', min: 0, max: 20000, step: 100, unit: 'm' },
+  { prop: 'x', label: 'X', min: -20000, max: 20000, step: 100, unit: 'm' },
+  { prop: 'y', label: 'Y', min: -20000, max: 20000, step: 100, unit: 'm' },
   { prop: 'Pj_dBm', label: '功率', min: 0, max: 80, step: 1, unit: 'dBm' },
   { prop: 'Gj_dB', label: '增益', min: 0, max: 40, step: 1, unit: 'dB' },
   { prop: 'jam_freq', label: '干扰频率', min: 8, max: 18, step: 0.001, unit: 'GHz', toDisplay: v => v / 1e9, toStorage: v => v * 1e9 },
@@ -121,30 +121,30 @@ onBeforeUnmount(() => {
       </span>
       <button class="del" title="删除" @click="onDelete">✕</button>
     </div>
-    <!-- el-slider 不透传 focus/blur：在字段容器上用捕获阶段监听，保证 focusedKey 契约 -->
-    <div
-      v-for="f in fields"
-      :key="f.prop"
-      class="field"
-      :data-prop="f.prop"
-      :class="{ pending: isPending(f.prop) }"
-      @focus.capture="onFocus(f.prop)"
-      @blur.capture="onBlur"
-    >
-      <label>
-        {{ f.label }}
-        <span v-if="isPending(f.prop)" class="tilde">~</span>
-      </label>
-      <el-slider
-        :model-value="displayVal(f)"
-        :min="f.min"
-        :max="f.max"
-        :step="f.step"
-        show-input
-        size="small"
-        @update:model-value="onInput(f, $event as number)"
-      />
-      <span class="val mono">{{ f.unit }}</span>
+    <!-- 旋钮不透传 focus/blur：在字段容器上用捕获阶段监听，保证 focusedKey 契约 -->
+    <div class="fields-grid">
+      <div
+        v-for="f in fields"
+        :key="f.prop"
+        class="field"
+        :data-prop="f.prop"
+        :class="{ pending: isPending(f.prop) }"
+        @focus.capture="onFocus(f.prop)"
+        @blur.capture="onBlur"
+      >
+        <label>
+          {{ f.label }}
+          <span v-if="isPending(f.prop)" class="tilde">~</span>
+        </label>
+        <KnobControl
+          :model-value="displayVal(f)"
+          :min="f.min"
+          :max="f.max"
+          :step="f.step"
+          :unit="f.unit"
+          @update:model-value="onInput(f, $event)"
+        />
+      </div>
     </div>
     <div
       v-if="kind === 'jammer'"
@@ -211,9 +211,15 @@ onBeforeUnmount(() => {
 }
 
 .field {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 2px;
+}
+
+.fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 8px;
 }
 
@@ -230,12 +236,6 @@ onBeforeUnmount(() => {
   color: var(--accent);
   font-weight: 600;
   margin-left: 2px;
-}
-
-.val {
-  font-size: 11px;
-  color: var(--text-2);
-  min-width: 34px;
 }
 
 .field .el-select {

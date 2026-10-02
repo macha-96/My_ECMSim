@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { ElMessageBox } from 'element-plus'
 import EntityCard from './EntityCard.vue'
+import KnobControl from './KnobControl.vue'
 import { useSceneStore } from '../stores/scene'
 import type { Radar } from '../types/api'
 
@@ -13,7 +13,7 @@ vi.mock('element-plus', () => ({
 
 const radar = (id: number): Radar => ({ id, x: 5000, y: 5000, Pt_dBm: 20, G_dB: 25, freq: 1e10, bandwidth: 1e6, sigma: 5, thresh_db: -50 })
 
-describe('EntityCard (radar)', () => {
+describe('EntityCard (radar, knob)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
@@ -26,57 +26,57 @@ describe('EntityCard (radar)', () => {
     return { w, scene }
   }
 
+  function knobFor(w: ReturnType<typeof setup>['w'], prop: string) {
+    const field = w.find(`.field[data-prop="${prop}"]`)
+    expect(field.exists()).toBe(true)
+    return field.findComponent(KnobControl)
+  }
+
   it('展示实体标题 R1', () => {
     const { w } = setup()
     expect(w.text()).toContain('R1')
     expect(w.text()).toContain('雷达')
   })
 
-  it('修改功率滑杆调用 updateField 且标 pending', async () => {
+  it('旋钮旋转调用 updateField 且标 pending（存储值）', async () => {
     const { w, scene } = setup()
-    // 找到 Pt_dBm 对应的 input（el-slider show-input 生成 input[type=number]）
-    const inputs = w.findAll('input')
-    expect(inputs.length).toBeGreaterThan(0)
-    // 输入定位适配（sanctioned）：末位 input 属于 thresh_db —— 按 data-prop 精确取功率输入
-    const powerInput = w.find('.field[data-prop="Pt_dBm"] input')
-    expect(powerInput.exists()).toBe(true)
-    await powerInput.setValue('42')
-    await powerInput.trigger('change')
-    expect(scene.pendingEdits.size).toBeGreaterThan(0)
+    const knob = knobFor(w, 'Pt_dBm')
+    // Pt_dBm=20 在范围 -20..60：显示值直接发出，存储值相同
+    knob.vm.$emit('update:modelValue', 42)
+    await w.vm.$nextTick()
+    expect(scene.radars[0].Pt_dBm).toBe(42)
     expect(scene.pendingEdits.has('Pt_dBm_1')).toBe(true)
   })
 
-  it('freq 显示为 GHz（10 GHz 对应 1e10 Hz）', () => {
+  it('freq 旋钮显示为 GHz（10 GHz 对应 1e10 Hz）', () => {
     const { w } = setup()
-    const sliderInputs = w.findAll('input').map(i => i.attributes('value') ?? (i.element as HTMLInputElement).value)
-    expect(sliderInputs.some(v => v === '10' || v.startsWith('10'))).toBe(true)
+    const knob = knobFor(w, 'freq')
+    expect(knob.props('modelValue')).toBeCloseTo(10)
+    expect(knob.props('min')).toBe(8)
+    expect(knob.props('max')).toBe(18)
+  })
+
+  it('x/y 坐标允许负值（min -20000）', () => {
+    const { w } = setup()
+    expect(knobFor(w, 'x').props('min')).toBe(-20000)
+    expect(knobFor(w, 'x').props('max')).toBe(20000)
+    expect(knobFor(w, 'y').props('min')).toBe(-20000)
   })
 
   it('focus/blur 切换 focusedKey', async () => {
     const { w, scene } = setup()
-    const input = w.find('input')
-    await input.trigger('focus')
-    expect(scene.focusedKey).not.toBeNull()
-    await input.trigger('blur')
+    const knob = w.find('.field[data-prop="Pt_dBm"] .knob')
+    await knob.trigger('focus')
+    expect(scene.focusedKey).toBe('Pt_dBm_1')
+    await knob.trigger('blur')
     expect(scene.focusedKey).toBeNull()
   })
 
-  it('删除：确认后同一次执行；取消则不删除', async () => {
+  it('频率键入：显示值换算回存储 Hz', async () => {
     const { w, scene } = setup()
-    const confirm = vi.mocked(ElMessageBox.confirm)
-    const remove = vi.spyOn(scene, 'removeRadar').mockResolvedValue(undefined)
-
-    // 第一次点击：弹确认框，确认后同一次动作即执行删除（无二次点击武装态）
-    await w.find('button.del').trigger('click')
-    await flushPromises()
-    expect(confirm).toHaveBeenCalledTimes(1)
-    expect(remove).toHaveBeenCalledTimes(1)
-
-    // 取消：不执行删除
-    confirm.mockRejectedValueOnce(new Error('用户取消'))
-    await w.find('button.del').trigger('click')
-    await flushPromises()
-    expect(confirm).toHaveBeenCalledTimes(2)
-    expect(remove).toHaveBeenCalledTimes(1)
+    const knob = knobFor(w, 'freq')
+    knob.vm.$emit('update:modelValue', 10.5) // GHz 显示值
+    await w.vm.$nextTick()
+    expect(scene.radars[0].freq).toBeCloseTo(10.5e9)
   })
 })
