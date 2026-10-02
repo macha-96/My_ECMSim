@@ -44,7 +44,11 @@ const visible = computed(() => {
 </template>
 
 <style scoped>
-.control-panel { display: flex; flex-direction: column; gap: 8px; overflow: auto; padding: 8px; }
+.control-panel { display: flex; flex-direction: column; gap: 8px; overflow: auto; padding: 8px; flex: 1; min-height: 0; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
+.control-panel::-webkit-scrollbar { width: 8px; }
+.control-panel::-webkit-scrollbar-track { background: transparent; }
+.control-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 4px; }
+.control-panel::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); }
 .toolbar { display: flex; justify-content: space-between; align-items: center; }
 .tabs { display: flex; gap: 4px; }
 .tab {
