@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 // 局部注册表单组件：测试环境未挂载 app.use(ElementPlus)，且 spec 用 vi.mock 截获
 // element-plus 根入口 —— 走子路径导入不受 mock 影响，保证测试与应用渲染一致
@@ -10,7 +10,6 @@ import { pendingKey, useSceneStore } from '../stores/scene'
 
 const props = defineProps<{ kind: EntityKind; id: number }>()
 const scene = useSceneStore()
-const confirmedDelete = ref(false)
 
 const entity = computed(() =>
   props.kind === 'radar'
@@ -82,14 +81,11 @@ function onBlur(): void {
 }
 
 async function onDelete(): Promise<void> {
-  if (!confirmedDelete.value) {
-    try {
-      await ElMessageBox.confirm(`确认删除 ${props.kind === 'radar' ? 'R' : 'J'}${props.id}？`, '删除', { type: 'warning' })
-      confirmedDelete.value = true
-      return
-    } catch {
-      return
-    }
+  if (!entity.value) return
+  try {
+    await ElMessageBox.confirm(`确认删除 ${props.kind === 'radar' ? 'R' : 'J'}${props.id}？`, '删除', { type: 'warning' })
+  } catch {
+    return // 用户取消
   }
   if (props.kind === 'radar') await scene.removeRadar(props.id)
   else await scene.removeJammer(props.id)

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { ElMessageBox } from 'element-plus'
 import EntityCard from './EntityCard.vue'
 import { useSceneStore } from '../stores/scene'
 import type { Radar } from '../types/api'
@@ -58,5 +59,24 @@ describe('EntityCard (radar)', () => {
     expect(scene.focusedKey).not.toBeNull()
     await input.trigger('blur')
     expect(scene.focusedKey).toBeNull()
+  })
+
+  it('删除：确认后同一次执行；取消则不删除', async () => {
+    const { w, scene } = setup()
+    const confirm = vi.mocked(ElMessageBox.confirm)
+    const remove = vi.spyOn(scene, 'removeRadar').mockResolvedValue(undefined)
+
+    // 第一次点击：弹确认框，确认后同一次动作即执行删除（无二次点击武装态）
+    await w.find('button.del').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(remove).toHaveBeenCalledTimes(1)
+
+    // 取消：不执行删除
+    confirm.mockRejectedValueOnce(new Error('用户取消'))
+    await w.find('button.del').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(remove).toHaveBeenCalledTimes(1)
   })
 })
