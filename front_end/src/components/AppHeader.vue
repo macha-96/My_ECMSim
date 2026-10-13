@@ -157,6 +157,8 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+  position: relative;
+  z-index: 10;
 }
 .badge {
   font-size: 12px;
