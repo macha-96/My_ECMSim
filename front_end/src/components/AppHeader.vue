@@ -146,6 +146,18 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  margin: 8px;
+}
+.badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 .badge {
   font-size: 12px;
   padding: 3px 10px;
