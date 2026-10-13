@@ -2,7 +2,22 @@
 
 ## Project Overview
 
-ECMSim: single-binary C++17 electronic-countermeasures simulator. Calculates radar/jammer SINR from a JSON scene config. Supports HTTP + gRPC + WebSocket triple-service architecture.
+ECMSim is a single-binary C++17 electronic-countermeasures simulator that calculates radar/jammer SINR from a JSON scene config. It supports an HTTP + gRPC + WebSocket triple-service architecture and integrates a Python DQN (Deep Q-Network) agent for intelligent jamming decisions.
+
+**What it does:**
+- Simulates radar/jammer signal-to-interference-plus-noise ratio (SINR) using physics-based radar equations
+- Supports two jamming types: noise suppression (NOISE_JAM) and range deception (RANGE_DECEPT)
+- Provides frequency-domain matching models (rectangular window + Gaussian smoothing) for effective jamming power calculation
+- Manages multi-entity scenarios (arbitrary radars + jammers) with thread-safe session management
+- Integrates a DQN-based intelligent agent for autonomous jamming strategy optimization
+
+**Architecture at a glance:**
+- **Service Layer**: HTTP (:8080) + gRPC (:50051) + WebSocket, all sharing one SceneManager
+- **Business Layer**: SceneManager (thread-safe sessions) + 10 RESTful API handlers + gRPC AgentService
+- **Engine Layer**: ECMAlgo (stateless physics/math) + ECMSim (stateful entities + simulation)
+- **DQN Agent**: Python PyTorch agents connecting via gRPC for intelligent decision-making
+
+See README.md for full architecture diagrams and API documentation.
 
 ## Build & Run
 

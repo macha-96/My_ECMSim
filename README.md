@@ -1,384 +1,217 @@
 # ECMSim — 电子对抗仿真器
 
-单二进制 C++17 电子对抗仿真器，支持 HTTP + gRPC + WebSocket 三合一架构。
+ECMSim 是一个单二进制 C++17 电子对抗仿真系统，用于计算雷达/干扰机的信干噪比（SINR），支持 HTTP + gRPC + WebSocket 三合一服务架构，并集成了基于深度 Q 网络（DQN）的智能干扰决策模块。
+
+## 核心功能
+
+- **雷达方程仿真**：自由空间路径损耗、回波功率、热噪声、SINR 计算
+- **干扰样式**：噪声压制干扰（NOISE_JAM）、距离欺骗干扰（RANGE_DECEPT）
+- **频域匹配模型**：矩形窗（工程标准）和高斯平滑（智能训练用）两种频域匹配系数
+- **干信比（JSR）**：有效干扰功率与信号功率的比值，含频域匹配衰减
+- **多实体支持**：任意数量的雷达和干扰机，动态场景管理
+- **智能决策**：基于 DQN 的干扰机自主决策，支持多干扰机协调分工
+
+## 架构设计
+
+### 总体架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     客户端层                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  Web 前端     │  │  Python DQN  │  │  gRPC 客户端  │      │
+│  │ (index_v2)   │  │   智能体      │  │              │      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
+└─────────┼──────────────────┼──────────────────┼──────────────┘
+          │ HTTP/WS          │ gRPC              │ gRPC
+          ▼                  ▼                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   服务层 (C++ Boost.Beast)                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ HTTP Server  │  │ WebSocket    │  │ gRPC Server  │      │
+│  │  :8080       │  │ /ws          │  │  :50051      │      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
+│         │                  │                  │              │
+│         └──────────────────┼──────────────────┘              │
+│                            ▼                                 │
+│                   ┌─────────────────┐                        │
+│                   │   SceneManager  │                        │
+│                   │  (线程安全会话)  │                        │
+│                   └────────┬────────┘                        │
+└────────────────────────────┼─────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    仿真引擎层                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  ECMAlgo     │  │  ECMSim      │  │  jsoncpp     │      │
+│  │  物理方程     │  │  实体/场景    │  │  JSON 解析    │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 分层设计
+
+| 层次 | 模块 | 职责 |
+|------|------|------|
+| **客户端** | Web 前端 / Python DQN / gRPC 客户端 | 人机交互、智能决策、自动化测试 |
+| **服务层** | HTTP / WebSocket / gRPC | 协议解析、路由分发、并发处理 |
+| **业务层** | SceneManager / Routes / gRPC Service | 会话管理、CRUD 操作、仿真调度 |
+| **引擎层** | ECMAlgo / ECMSim | 雷达方程、物理计算、状态管理 |
+
+### 核心模块
+
+#### 1. ECMAlgo — 物理算法层
+
+命名空间 `ECMAlgo`，无状态纯函数，负责所有物理计算：
+
+- **自由空间路径损耗**：`freeSpaceLoss(r, freq)`
+- **雷达回波功率**：`radarEchoPower(Pt, Gt, Gr, sigma, r, freq)`
+- **干扰到达功率**：`jammerReceivePower(Pj, Gj, Gr, r, freq)`
+- **热噪声功率**：`thermalNoisePower(B)`
+- **SINR 计算**：`calcSINR(signal_pow, jam_pow, noise_pow)`
+- **频域匹配**：`freqMatchRect`（矩形窗）、`freqMatchGauss`（高斯平滑）
+- **有效干扰功率**：`effectiveJamPower(Pj_space, delta_f, B, useGauss)`
+- **干信比**：`calcJSR(jam_power, signal_power)`
+
+#### 2. ECMSim — 实体与仿真层
+
+命名空间 `ECMSim`，持有状态，负责场景管理和仿真执行：
+
+- **Radar 类**：雷达实体，含位置、功率、增益、频率、带宽、RCS、检测门限
+- **Jammer 类**：干扰机实体，含位置、功率、增益、干扰频率、干扰样式（噪声/欺骗）
+- **SimScene 类**：场景容器，管理 `std::map<int, Radar>` 和 `std::map<int, Jammer>`
+- **SceneManager 类**：多会话管理器，`std::unordered_map<string, SessionData>`，线程安全
+
+#### 3. Framework — 基础设施层
+
+通用基础设施，无 ECMSim 业务依赖：
+
+- **RouteTrie**：纯字典树路由，支持 RESTful 路径参数
+- **http_session / http_server**：基于 Boost.Beast 的 HTTP 会话和服务器
+- **websocket_session / ws_broadcaster**：WebSocket 会话管理和广播器
+
+#### 4. Handlers — 业务层
+
+ECMSim 专属业务逻辑：
+
+- **common**：全局状态、工具函数、`cleanup_controller`（资源清理）
+- **routes**：`initRoutes` + 10 个 API 处理函数
+- **grpc_service**：gRPC `AgentService` 实现
+
+### 数据流
+
+```
+前端/Python → HTTP/gRPC → SceneManager 修改数据
+                                     ↓
+                                broadcastScene()
+                                     ↓
+                                WebSocket 推送到会话的前端
+```
+
+### DQN 智能体数据流
+
+```
+Python 智能体 → gRPC GetState → SceneManager.getStateForJammer()
+                                     ↓
+                            返回原始雷达二维表:
+                            [radar_count, radar1[7], ..., jammer[2]]
+                                     ↓
+                          Python DQNJammerAgent.parse_state()
+                                     ↓
+                          计算威胁权重 w_i = 1/(dist_i+1)
+                          聚合为 9 维向量
+                                     ↓
+                          Trainer 追加 4 维覆盖特征 → 13 维
+                                     ↓
+                          QNetwork(state_dim=13) → 动作 (power_dbm, jam_freq)
+                                     ↓
+                          Trainer 选择参考雷达（最近未覆盖）
+                                     ↓
+                          gRPC ExecuteAction → 干扰机更新
+                                     ↓
+                          gRPC StepSimulation → SINR + 检测结果
+                                     ↓
+                          Python compute_reward() → 训练信号
+```
 
 ## 快速开始
 
-### 1. 安装系统依赖
+### 1. 安装依赖
 
 ```bash
-# Ubuntu/Debian
-sudo apt update
+# 系统依赖 (Ubuntu/Debian)
 sudo apt install -y build-essential cmake git wget \
     libssl-dev zlib1g-dev libc-ares-dev \
     python3 python3-pip python3-venv
 
-# CentOS/RHEL
-sudo yum groupinstall -y "Development Tools"
-sudo yum install -y cmake git wget \
-    openssl-devel zlib-devel c-ares-devel \
-    python3 python3-pip
-```
-
-### 2. 安装第三方库
-
-```bash
-# 在项目根目录执行
+# 第三方库（Boost, gRPC, spdlog）
 bash scripts/setup_deps.sh
 ```
 
-### 3. 构建项目
+### 2. 构建
 
 ```bash
 export LIBBOOST_HOME=$HOME/soft/boost
 mkdir -p build && cd build && cmake .. && make -j$(nproc)
 ```
 
-### 4. 运行
+### 3. 运行
 
 ```bash
 ./bin/ecmsim_http_beast
 # 默认监听 HTTP :8080 + gRPC :50051 + WebSocket
+# 前端页面: http://localhost:8080
 ```
 
----
-
-## 依赖详细安装指南
-
-### 依赖总览
-
-| 依赖 | 版本 | 安装方式 | 用途 |
-|------|------|----------|------|
-| CMake | >= 3.16 | 系统包管理器 | 构建系统 |
-| GCC/Clang | C++17 支持 | 系统包管理器 | 编译器 |
-| Boost.Beast | 1.92.0 | 源码编译 | HTTP/WebSocket 服务器 |
-| gRPC + Protobuf | - | 源码编译 | RPC 通信 |
-| Abseil (absl) | - | gRPC 依赖 | gRPC 内部库 |
-| spdlog | 1.17.0 | git clone | 日志框架 |
-| jsoncpp | 1.9.8 | 已内置 | JSON 解析 |
-| OpenSSL | - | 系统包管理器 | TLS 支持 |
-| zlib | - | 系统包管理器 | 压缩 |
-| c-ares | - | 系统包管理器 | 异步 DNS |
-
----
-
-### 1. Boost (1.92.0)
-
-Boost.Beast 是 header-only 库，但需要编译部分 Boost 组件（thread, system, context, coroutine, filesystem）。
+### 4. DQN 智能体（可选）
 
 ```bash
-# 创建安装目录
-mkdir -p $HOME/soft
-
-# 下载 Boost 1.92.0
-cd /tmp
-wget https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.gz
-tar xzf boost_1_92_0.tar.gz
-cd boost_1_92_0
-
-# 编译安装（只编译项目需要的组件）
-./bootstrap.sh --prefix=$HOME/soft/boost
-./b2 install --prefix=$HOME/soft/boost \
-    --with-thread --with-system --with-context \
-    --with-coroutine --with-filesystem \
-    -j$(nproc)
-
-# 验证安装
-ls $HOME/soft/boost/include/boost/beast/
-ls $HOME/soft/boost/lib/libboost_*.so
-```
-
-**环境变量**（添加到 `~/.bashrc`）：
-```bash
-export LIBBOOST_HOME=$HOME/soft/boost
-export PATH=$LIBBOOST_HOME/bin:$PATH
-export LD_LIBRARY_PATH=$LIBBOOST_HOME/lib:$LD_LIBRARY_PATH
-```
-
----
-
-### 2. gRPC + Protobuf + Abseil
-
-gRPC 是本项目最复杂的依赖，需要从源码编译。本项目使用**静态链接**方式。
-
-```bash
-# 创建工作目录
-mkdir -p $HOME/build && cd $HOME/build
-
-# 克隆 gRPC（包含子模块）
-git clone --recursive -b v1.65.0 https://github.com/grpc/grpc.git
-cd grpc
-
-# 或者分步克隆子模块
-# git clone https://github.com/grpc/grpc.git
-# cd grpc
-# git submodule update --init --recursive --jobs 8
-
-# 创建构建目录
-mkdir -p cmake/build && cd cmake/build
-
-# 配置（关键选项）
-cmake ../.. \
-    -DCMAKE_INSTALL_PREFIX=$PROJECT_ROOT/third_party/grpc/install \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DgRPC_INSTALL=ON \
-    -DgRPC_BUILD_TESTS=OFF \
-    -DgRPC_BUILD_CODEGEN=ON \
-    -DgRPC_BUILD_CSHARP_EXT=OFF \
-    -DgRPC_BUILD_GRPC_CPP_PLUGIN=ON \
-    -DABSL_BUILD_TESTING=OFF \
-    -DABSL_USE_GOOGLETEST_HEAD=OFF \
-    -DBUILD_SHARED_LIBS=OFF \
-    -Dprotobuf_BUILD_TESTS=OFF \
-    -Dprotobuf_ABSL_PROVIDER=module \
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-
-# 编译（耗时较长，约 10-30 分钟）
-make -j$(nproc)
-
-# 安装到 third_party/grpc/install/
-make install
-```
-
-**编译完成后目录结构**：
-```
-third_party/grpc/install/
-├── bin/
-│   ├── protoc                  # protobuf 编译器
-│   ├── grpc_cpp_plugin         # gRPC C++ 代码生成插件
-│   └── ...
-├── include/
-│   ├── grpc++/                 # gRPC C++ 头文件
-│   ├── google/protobuf/        # Protobuf 头文件
-│   └── absl/                   # Abseil 头文件
-└── lib/
-    ├── libgrpc++.a             # gRPC C++ 静态库
-    ├── libgrpc.a               # gRPC 核心静态库
-    ├── libprotobuf.a           # Protobuf 静态库
-    ├── libabsl_*.a             # Abseil 系列静态库
-    ├── libre2.a                # RE2 正则库
-    └── cmake/                  # CMake 配置文件
-```
-
-**验证安装**：
-```bash
-ls $PROJECT_ROOT/third_party/grpc/install/bin/protoc
-ls $PROJECT_ROOT/third_party/grpc/install/lib/libgrpc++.a
-$PROJECT_ROOT/third_party/grpc/install/bin/protoc --version
-```
-
----
-
-### 3. spdlog (1.17.0)
-
-spdlog 是 header-only 日志库，通过 git clone 集成。
-
-```bash
-cd $PROJECT_ROOT/third_party
-
-# 克隆 spdlog
-git clone --branch v1.17.0 https://github.com/gabime/spdlog.git
-
-# 验证
-ls spdlog/include/spdlog/spdlog.h
-```
-
-**CMake 自动集成**：`CMakeLists.txt` 中已配置 `add_subdirectory(third_party/spdlog)`，无需额外操作。
-
----
-
-### 4. jsoncpp (1.9.8)
-
-jsoncpp 已内置在项目中，无需额外安装。
-
-```
-include/jsoncpp/json/json.h    # 头文件
-src/jsoncpp/jsoncpp.cpp        # 实现（自动编入 sim_core）
-```
-
----
-
-### 5. Python 虚拟环境（可选，用于 DQN 智能体）
-
-```bash
-cd $PROJECT_ROOT
-
 # 创建虚拟环境
-python3 -m venv .venv
-source .venv/bin/activate
-
-# 安装依赖
-pip install -r agents/dqn/requirements.txt
-# 或者使用 uv
-pip install uv
+python3 -m venv .venv && source .venv/bin/activate
 uv pip install -r agents/dqn/requirements.txt
+
+# 训练
+python agents/dqn/script/train_agent.py --jammer-ids=1,2 --episodes=1000
+
+# 推理
+python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 \
+    --model=weights/dqn_jammer_j1_final.pth --steps=5
 ```
 
----
+## HTTP API
 
-## 一键安装脚本
+| 路由 | 方法 | 描述 |
+|------|------|------|
+| `/` | GET | 前端页面 (WebSocket + DQN) |
+| `/api/scene` | POST | 创建/获取/删除会话 |
+| `/api/radars` | GET/POST | 雷达列表/添加雷达 |
+| `/api/radar` | GET/PUT/DELETE | 单个雷达 CRUD |
+| `/api/jammers` | GET/POST | 干扰机列表/添加干扰机 |
+| `/api/jammer` | GET/PUT/DELETE | 单个干扰机 CRUD |
+| `/api/simulate` | POST | 运行仿真，返回 SINR + 检测结果 |
+| `/api/dqn/state` | GET | 获取 DQN 状态向量 |
+| `/api/dqn/action` | POST | 执行 DQN 动作 |
+| `/api/scene/list` | GET | 所有会话列表 |
+| `/api/scene/stats` | GET | 服务器统计信息 |
 
-将以下内容保存为 `scripts/setup_deps.sh`：
+## WebSocket 协议
 
-```bash
-#!/bin/bash
-set -e
-
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-echo "项目根目录: $PROJECT_ROOT"
-
-# ========== 1. 系统依赖 ==========
-echo "=== 安装系统依赖 ==="
-if command -v apt &> /dev/null; then
-    sudo apt update
-    sudo apt install -y build-essential cmake git wget \
-        libssl-dev zlib1g-dev libc-ares-dev
-elif command -v yum &> /dev/null; then
-    sudo yum groupinstall -y "Development Tools"
-    sudo yum install -y cmake git wget \
-        openssl-devel zlib-devel c-ares-devel
-fi
-
-# ========== 2. Boost ==========
-echo "=== 安装 Boost ==="
-BOOST_DIR="$HOME/soft/boost"
-if [ ! -d "$BOOST_DIR" ]; then
-    mkdir -p $HOME/soft
-    cd /tmp
-    wget -q https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.gz
-    tar xzf boost_1_92_0.tar.gz
-    cd boost_1_92_0
-    ./bootstrap.sh --prefix=$BOOST_DIR
-    ./b2 install --prefix=$BOOST_DIR \
-        --with-thread --with-system --with-context \
-        --with-coroutine --with-filesystem -j$(nproc)
-    rm -rf /tmp/boost_1_92_0*
-    echo "Boost 安装完成: $BOOST_DIR"
-else
-    echo "Boost 已存在: $BOOST_DIR"
-fi
-
-# ========== 3. gRPC ==========
-echo "=== 安装 gRPC ==="
-GRPC_INSTALL="$PROJECT_ROOT/third_party/grpc/install"
-if [ ! -f "$GRPC_INSTALL/bin/protoc" ]; then
-    mkdir -p $HOME/build && cd $HOME/build
-    git clone --recursive -b v1.65.0 https://github.com/grpc/grpc.git
-    cd grpc
-    mkdir -p cmake/build && cd cmake/build
-    cmake ../.. \
-        -DCMAKE_INSTALL_PREFIX=$GRPC_INSTALL \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DgRPC_INSTALL=ON \
-        -DgRPC_BUILD_TESTS=OFF \
-        -DABSL_BUILD_TESTING=OFF \
-        -DBUILD_SHARED_LIBS=OFF \
-        -Dprotobuf_BUILD_TESTS=OFF \
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    make -j$(nproc)
-    make install
-    rm -rf $HOME/build/grpc
-    echo "gRPC 安装完成: $GRPC_INSTALL"
-else
-    echo "gRPC 已存在: $GRPC_INSTALL"
-fi
-
-# ========== 4. spdlog ==========
-echo "=== 安装 spdlog ==="
-SPDLOG_DIR="$PROJECT_ROOT/third_party/spdlog"
-if [ ! -d "$SPDLOG_DIR" ]; then
-    cd "$PROJECT_ROOT/third_party"
-    git clone --branch v1.17.0 https://github.com/gabime/spdlog.git
-    echo "spdlog 安装完成: $SPDLOG_DIR"
-else
-    echo "spdlog 已存在: $SPDLOG_DIR"
-fi
-
-# ========== 5. 设置环境变量 ==========
-echo "=== 设置环境变量 ==="
-echo "export LIBBOOST_HOME=$BOOST_DIR" >> ~/.bashrc
-echo "export PATH=$BOOST_DIR/bin:\$PATH" >> ~/.bashrc
-echo "export LD_LIBRARY_PATH=$BOOST_DIR/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
-
-echo ""
-echo "=== 安装完成 ==="
-echo "请执行以下命令使环境变量生效："
-echo "  source ~/.bashrc"
-echo ""
-echo "然后构建项目："
-echo "  export LIBBOOST_HOME=$BOOST_DIR"
-echo "  mkdir -p build && cd build && cmake .. && make -j\$(nproc)"
+```
+WS /ws?session_id=<sid>
 ```
 
-**使用方式**：
-```bash
-chmod +x scripts/setup_deps.sh
-bash scripts/setup_deps.sh
-source ~/.bashrc
+服务器在任何数据变更后自动推送完整场景 JSON 到所有连接的客户端。
+
+## gRPC 服务 (端口 50051)
+
+```protobuf
+service AgentService {
+  rpc GetState(StateRequest) returns (StateResponse);
+  rpc ExecuteAction(ActionRequest) returns (ActionResponse);
+  rpc StepSimulation(StepRequest) returns (StepResponse);
+}
 ```
-
----
-
-## 构建与运行
-
-```bash
-# 设置环境变量
-export LIBBOOST_HOME=$HOME/soft/boost
-
-# 构建
-mkdir -p build && cd build
-cmake ..
-make -j$(nproc)
-
-# 运行
-cd ..
-./bin/ecmsim_http_beast
-
-# 或指定静态文件目录
-./bin/ecmsim_http_beast static
-```
-
----
-
-## 常见问题
-
-### Q: cmake 找不到 Boost
-```bash
-# 确保设置了 LIBBOOST_HOME 环境变量
-export LIBBOOST_HOME=$HOME/soft/boost
-echo $LIBBOOST_HOME  # 应输出 /home/xxx/soft/boost
-```
-
-### Q: gRPC 编译失败
-```bash
-# 确保子模块完整
-cd $HOME/build/grpc
-git submodule update --init --recursive --jobs 8
-
-# 清理重新编译
-rm -rf cmake/build
-mkdir -p cmake/build && cd cmake/build
-cmake ../.. [同上参数]
-```
-
-### Q: 链接时找不到库
-```bash
-# 检查库文件是否存在
-ls $PROJECT_ROOT/third_party/grpc/lib/libgrpc++.a
-ls $HOME/soft/boost/lib/libboost_thread.a
-
-# 检查环境变量
-echo $LIBBOOST_HOME
-```
-
-### Q: 运行时报错 "Cannot load static/index_v2.html"
-```bash
-# 确保在项目根目录运行，或指定正确的静态文件目录
-cd $PROJECT_ROOT
-./bin/ecmsim_http_beast static
-```
-
----
 
 ## 目录结构
 
@@ -391,9 +224,9 @@ ECMSim/
 │   └── setup_deps.sh           # 依赖安装脚本
 ├── config/                     # 场景 JSON 配置
 ├── include/
-│   ├── algo/                   # 物理常数 + 雷达方程
-│   ├── entity/                 # Radar, Jammer 类
-│   ├── sence/                  # SimScene + SceneManager
+│   ├── algo/                   # ECMAlgo: 物理常数 + 雷达方程
+│   ├── entity/                 # ECMSim: Radar, Jammer 类
+│   ├── sence/                  # ECMSim: SimScene + SceneManager
 │   ├── app/
 │   │   ├── framework/          # 基础设施层（通用）
 │   │   │   ├── router.h        #   RouteTrie 字典树路由
@@ -404,83 +237,34 @@ ECMSim/
 │   │       ├── routes.h        #   initRoutes + API handlers
 │   │       └── grpc_service.h  #   gRPC AgentService
 │   ├── jsoncpp/json/           # jsoncpp 头文件
-│   └── my_http_lib/            # 旧日志头文件（已弃用）
-├── src/
+│   └── util/                   # 通用工具
+├── src/                        # .cpp 镜像 include/ 布局
 │   ├── algo/                   # 雷达方程实现
 │   ├── entity/                 # radar.cpp, jammer.cpp
-│   ├── sence/                  # sim_sence.cpp + scene_manager.cpp
+│   ├── sence/                  # sim_scene.cpp + scene_manager.cpp
 │   ├── jsoncpp/                # jsoncpp 静态编译
 │   └── app/
 │       ├── framework/          # 基础设施层实现
-│       │   ├── router.cpp      #   RouteTrie 实现
-│       │   ├── http_session.cpp
-│       │   └── ws_session.cpp
 │       ├── handlers/           # 业务层实现
-│       │   ├── common.cpp      #   工具函数 + cleanup
-│       │   ├── routes.cpp      #   initRoutes + 10 个 handler
-│       │   └── grpc_service.cpp
 │       └── web_server_beast.cpp # main() 入口
 ├── build/                      # cmake 构建输出
-├── bin/                        # 编译后的二进制文件
+├── bin/                        # 编译后的二进制
 ├── static/
 │   └── index_v2.html           # 前端页面 (WebSocket + DQN)
 ├── test/                       # 单元测试
 ├── agents/dqn/                 # Python DQN 智能体
+│   ├── script/                 # 训练/推理入口 + 配置
+│   ├── core/                   # DQNJammerAgent + ReplayBuffer
+│   ├── model/                  # QNetwork (PyTorch)
+│   ├── train/                  # DQNTrainer
+│   ├── utils/                  # 工具函数
+│   ├── client.py               # gRPC 客户端
+│   ├── weights/                # 训练好的模型权重
+│   └── protos/                 # Python protobuf stubs
 ├── protos/                     # gRPC protobuf 定义
-└── third_party/                # 第三方依赖（需手动安装）
+└── third_party/                # 第三方依赖
     ├── grpc/                   # gRPC + Protobuf + Abseil
-    │   └── install/            # 安装目录
     └── spdlog/                 # spdlog v1.17.0
-```
-
----
-
-## DQN 智能体（多雷达架构）
-
-### 数据流
-
-```
-Python 智能体 → gRPC GetState → C++ SceneManager.getStateForJammer()
-                                    ↓
-                            返回原始雷达二维表:
-                            [radar_count, radar1[7], ..., jammer[2]]
-                                    ↓
-                          DQNJammerAgent.parse_state()
-                                    ↓
-                          自行计算威胁权重 w_i = 1/(dist_i+1)
-                          聚合为 9 维向量
-                                    ↓
-                          QNetwork → 动作 (power_dbm, jam_freq)
-                                    ↓
-                          gRPC ExecuteAction → 干扰机更新
-```
-
-### 核心设计
-
-- **C++ 只提供原始数据**：`getStateForJammer` 返回所有雷达的原始参数，不做任何聚合
-- **Python 智能体自行决策**：每个智能体独立计算威胁权重，可自定义威胁计算逻辑（基于雷达类型、RCS 等）
-- **模型结构不变**：QNetwork 的 `state_dim=9` 和 `action_dim=21` 与单雷达场景一致
-
-### 状态向量格式
-
-C++ 返回的原始状态：
-```
-[radar_count, radar1[rx,ry,freq,bw,pt,dist,delta_f], ..., jammer[pj,freq]]
-```
-
-Python 聚合后的 9 维向量：
-```
-[avg_rx, avg_ry, avg_pt, avg_dist, max_threat_freq, max_threat_bw, max_threat_delta_f, jammer_pj, jammer_freq]
-```
-
-### 运行
-
-```bash
-# 训练
-python agents/dqn/script/train_agent.py --episodes=2000
-
-# 推理
-python agents/dqn/script/inference.py --session-id=<sid> --jammer-id=1 --model=weights/dqn_jammer_final.pth --steps=5
 ```
 
 ## 日志规范
@@ -507,3 +291,29 @@ spdlog::info("会话 {} 有 {} 个雷达", session_id, count);
 spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v");
 spdlog::set_level(spdlog::level::info);
 ```
+
+## 常见问题
+
+### Q: cmake 找不到 Boost
+```bash
+export LIBBOOST_HOME=$HOME/soft/boost
+echo $LIBBOOST_HOME  # 应输出 /home/xxx/soft/boost
+```
+
+### Q: gRPC 编译失败
+```bash
+cd $HOME/build/grpc
+git submodule update --init --recursive --jobs 8
+rm -rf cmake/build && mkdir -p cmake/build && cd cmake/build
+cmake ../.. [参数见 scripts/setup_deps.sh]
+```
+
+### Q: 运行时报错 "Cannot load static/index_v2.html"
+```bash
+cd $PROJECT_ROOT
+./bin/ecmsim_http_beast static
+```
+
+## 许可证
+
+本项目仅供学习和研究使用。
