@@ -1,8 +1,8 @@
 // 场景/实体/仿真的 HTTP 封装 — URL 与 body 字段与 C++ 路由严格一致
 import type {
-  CreateSessionRes, EntityRes, Jammer, Radar, SceneConfigRes, SimulateRes,
+  CreateSessionRes, EntityRes, Jammer, Radar, SceneConfigRes, SceneListRes, SimulateRes,
 } from '../types/api'
-import { postJson } from './http'
+import { getJson, postJson } from './http'
 
 export function createSession(): Promise<CreateSessionRes> {
   return postJson<CreateSessionRes>('/api/scene', {})
@@ -42,4 +42,8 @@ export function deleteJammer(sessionId: string, jammerId: number): Promise<Entit
 
 export function simulate(sessionId: string): Promise<SimulateRes> {
   return postJson<SimulateRes>('/api/simulate', { session_id: sessionId })
+}
+
+export function listScenes(): Promise<SceneListRes> {
+  return getJson<SceneListRes>('/api/scene/list')
 }

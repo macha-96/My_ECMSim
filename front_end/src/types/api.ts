@@ -74,3 +74,18 @@ export interface SimulateRes {
   sim_results?: SimResult[]
   error?: string
 }
+
+export interface SceneListItem {
+  session_id: string
+  last_access: number
+  radar_count: number
+  jammer_count: number
+  ws_connections: number
+}
+
+export interface SceneListRes {
+  success: boolean
+  sessions?: SceneListItem[]
+  total?: number
+  error?: string
+}

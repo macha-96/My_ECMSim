@@ -2,6 +2,8 @@
 import { computed, watch, ref, onBeforeUnmount } from 'vue'
 import { useSceneStore } from '../stores/scene'
 import { ElMessage } from 'element-plus'
+import { listScenes } from '../api/scene'
+import { errText } from '../api/http'
 import type { WsStatus } from '../composables/useWebSocket'
 
 const props = defineProps<{ wsStatus: WsStatus; sessionId: string | null }>()
@@ -21,21 +23,21 @@ const wsMeta = computed(() => {
 const popoverVisible = ref(false)
 const sessions = ref<any[]>([])
 const refreshing = ref(false)
+const dropdownTop = ref(0)
+const dropdownLeft = ref(0)
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const refreshSessions = async (): Promise<void> => {
   refreshing.value = true
   try {
-    const res = await fetch('/api/scene/list', { credentials: 'same-origin' })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    if (data.success && data.sessions) {
-      sessions.value = data.sessions
+    const r = await listScenes()
+    if (r.success && r.sessions) {
+      sessions.value = r.sessions
     } else {
-      ElMessage.error(data.error || '获取会话列表失败')
+      ElMessage.error(r.error || '获取会话列表失败')
     }
   } catch (e) {
-    ElMessage.error(String(e))
+    ElMessage.error(errText(e))
   } finally {
     refreshing.value = false
     if (popoverVisible.value) {
@@ -51,6 +53,13 @@ const cancelRefresh = (): void => {
   }
 }
 
+const handleSwitchSession = async (sid: string): Promise<void> => {
+  if (!sid || sid === scene.sessionId) return
+  scene.sessionId = sid
+  await scene.fetchScene()
+  popoverVisible.value = false
+}
+
 const getRelativeTime = (ts: number): string => {
   const diff = Math.max(0, Math.floor(Date.now() / 1000) - ts)
   if (diff < 60) return `${diff} 秒前`
@@ -59,12 +68,20 @@ const getRelativeTime = (ts: number): string => {
   return `${Math.floor(diff / 86400)} 天前`
 }
 
-const handleSwitchSession = async (sid: string): Promise<void> => {
-  if (!sid || sid === scene.sessionId) return
-  // 直接换会话：更新 store 会话 ID → 重拉场景 → App.vue watch 自动 connectWs
-  scene.sessionId = sid
-  await scene.fetchScene()
+function onWrapperEnter(e: MouseEvent): void {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  dropdownTop.value = rect.bottom + 4
+  dropdownLeft.value = rect.right - 320
+  popoverVisible.value = true
+  void refreshSessions()
+}
+
+function onDropdownLeave(): void {
   popoverVisible.value = false
+}
+
+function keepOpen(): void {
+  popoverVisible.value = true
 }
 
 watch(
@@ -95,48 +112,54 @@ onBeforeUnmount(() => {
       </span>
       <div
         class="session-wrapper"
-        @mouseenter="popoverVisible = true"
+        @mouseenter="onWrapperEnter"
         @mouseleave="popoverVisible = false"
       >
         <span class="badge sid mono" :title="props.sessionId ?? ''">
           会话 {{ props.sessionId ?? '—' }}
         </span>
-        <TransitionName name="fade">
-          <div v-if="popoverVisible" class="popover-dropdown">
-            <div class="popover-head">
-              <span>全部会话</span>
-              <button
-                class="refresh-btn"
-                :disabled="refreshing"
-                @click="refreshSessions"
-              >
-                {{ refreshing ? '刷新中…' : '刷新' }}
-              </button>
+        <Teleport to="body">
+          <Transition name="fade">
+            <div
+              v-if="popoverVisible"
+              class="popover-dropdown"
+              :style="{ top: dropdownTop + 'px', left: dropdownLeft + 'px' }"
+              @mouseenter="keepOpen"
+              @mouseleave="onDropdownLeave"
+            >
+              <div class="popover-head">
+                <span>全部会话</span>
+                <button
+                  class="refresh-btn"
+                  :disabled="refreshing"
+                  @click="refreshSessions"
+                >
+                  {{ refreshing ? '刷新中…' : '刷新' }}
+                </button>
+              </div>
+              <div v-if="sessions.length === 0 && !refreshing" class="empty">暂无会话</div>
+              <ul v-else class="popover-list">
+                <li
+                  v-for="s in sessions"
+                  :key="s.session_id"
+                  class="popover-item"
+                  :class="{ current: s.session_id === scene.sessionId }"
+                  @click="handleSwitchSession(s.session_id)"
+                >
+                  <div class="row1">
+                    <span class="sid mono" :title="s.session_id">{{ s.session_id }}</span>
+                    <span v-if="s.session_id === scene.sessionId" class="badge">当前</span>
+                  </div>
+                  <div class="row2">
+                    <span>雷达 {{ s.radar_count }} · 干扰机 {{ s.jammer_count }}</span>
+                    <span>{{ getRelativeTime(s.last_access) }}</span>
+                    <span v-if="s.ws_connections > 0" class="ws">在线 {{ s.ws_connections }}</span>
+                  </div>
+                </li>
+              </ul>
             </div>
-            <div v-if="sessions.length === 0 && !refreshing" class="empty">暂无会话</div>
-            <ul v-else class="popover-list">
-              <li
-                v-for="s in sessions"
-                :key="s.session_id"
-                class="popover-item"
-                :class="{ current: s.session_id === scene.sessionId }"
-                @click="handleSwitchSession(s.session_id)"
-              >
-                <div class="row1">
-                  <span class="sid mono" :title="s.session_id">{{ s.session_id }}</span>
-                  <span v-if="s.session_id === scene.sessionId" class="badge">当前</span>
-                </div>
-                <div class="row2">
-                  <span>雷达 {{ s.radar_count }} · 干扰机 {{ s.jammer_count }}</span>
-                  <span>{{ getRelativeTime(s.last_access) }}</span>
-                  <span v-if="s.ws_connections > 0" class="ws">在线 {{ s.ws_connections }}</span>
-                </div>
-              </li>
-              <li v-if="sessions.length === 0" class="empty-bottom">点击卡片切换会话</li>
-            </ul>
-            <div v-if="sessions.length === 0" class="empty-bottom">点击卡片切换会话</div>
-          </div>
-        </TransitionName>
+          </Transition>
+        </Teleport>
       </div>
     </div>
     <span v-if="scene.dirtyCount > 0" class="badge pending">待同步 {{ scene.dirtyCount }}</span>
@@ -157,8 +180,6 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 8px;
   align-items: center;
-  position: relative;
-  z-index: 10;
 }
 .badge {
   font-size: 12px;
@@ -184,27 +205,20 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  position: relative;
   cursor: pointer;
 }
-.session-wrapper:hover { background: rgba(0, 0, 0, 0.35); }
 
-/* Popover dropdown */
 .popover-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 320px;
+  position: fixed;
+  width: 320px;
   background: var(--background);
   border: 1px solid var(--glass-border);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 9999 !important;
+  z-index: 9999;
   padding: 8px 0;
   font-size: 12px;
-  display: none;
 }
-.session-wrapper:hover .popover-dropdown { display: block; }
 .popover-head {
   display: flex;
   justify-content: space-between;
@@ -250,14 +264,7 @@ onBeforeUnmount(() => {
 .badge.small { font-size: 10px; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; }
 .row2 { display: flex; gap: 10px; font-size: 11px; color: var(--text-2); margin-top: 2px; }
 .ws { color: var(--ok); }
-.empty-bottom {
-  padding: 12px 8px;
-  text-align: center;
-  color: var(--text-2);
-  font-size: 11px;
-}
 
-/* Vue TransitionName fade */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity .2s ease;
