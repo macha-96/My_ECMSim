@@ -1,5 +1,5 @@
 #include <app/handlers/grpc_service.h>
-#include <app/handlers/common.h>
+#include <app/framework/common.h>
 
 static inline const char* jammerModeStr(ECMSim::JamType t) {
     return t == ECMSim::JamType::NOISE_JAM ? "NOISE_JAM" : "RANGE_DECEPT";

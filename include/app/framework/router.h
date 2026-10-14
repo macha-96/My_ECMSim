@@ -8,18 +8,25 @@
 
 namespace http = boost::beast::http;
 
-using RequestHandler = std::function<std::string(const http::request<http::string_body>&)>;
+struct RouteResponse {
+    std::string body;
+    std::string content_type = "application/json";
+    http::status status = http::status::ok;
+};
+
+using RequestHandler = std::function<RouteResponse(const http::request<http::string_body>&)>;
 
 class RouteTrie {
 public:
     void addRoute(const std::string& path, RequestHandler handler);
-    std::string dispatch(const http::request<http::string_body>& req) const;
+    RouteResponse dispatch(const http::request<http::string_body>& req) const;
     void dump() const;
 
 private:
     struct TrieNode {
         std::unordered_map<std::string, std::unique_ptr<TrieNode>> children;
         RequestHandler handler;
+        bool has_handler = false;
     };
 
     void dumpNode(const TrieNode& node, int depth) const;

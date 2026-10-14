@@ -12,10 +12,11 @@
  *   - router.h/.cpp         — 字典树路由分发
  */
 
-#include <app/handlers/common.h>
+
 #include <app/framework/http_session.h>
 #include <app/handlers/grpc_service.h>
 #include <app/framework/router.h>
+#include <app/framework/common.h>
 #include <app/handlers/routes.h>
 #include <spdlog/spdlog.h>
 #include <util/cmdline.h>
@@ -55,13 +56,11 @@ int main(int argc, char* argv[]) {
     uint16_t port;
     prase_args(argc, argv, host, port, static_dir);
 
-    // 加载前端界面
-    std::string indexPath = static_dir + "/index_v2.html";
-    if (!loadFile(indexPath, g_index_html)) {
-        spdlog::error("无法加载前端页面: {}", indexPath);
+    // 加载静态文件目录
+    if (!loadStaticDir(static_dir)) {
+        spdlog::error("无法加载静态文件目录: {}", static_dir);
         return 1;
     }
-    spdlog::info("加载前端页面: {} ({} bytes)", indexPath, g_index_html.size());
 
     // 初始化路由表
     initRoutes(g_router);

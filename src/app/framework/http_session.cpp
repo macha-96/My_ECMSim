@@ -1,7 +1,7 @@
 #include <app/framework/http_session.h>
 #include <app/framework/router.h>
 #include <app/framework/ws_session.h>
-#include <app/handlers/common.h>
+#include <app/framework/common.h>
 #include <spdlog/spdlog.h>
 
 // http_session 实现
@@ -53,14 +53,13 @@ void http_session::process() {
     }
 
     extern RouteTrie g_router;
-    std::string response_str = g_router.dispatch(req_);
-    bool is_html = (target == "/");
+    RouteResponse rr = g_router.dispatch(req_);
 
-    http::response<http::string_body> res{http::status::ok, req_.version()};
+    http::response<http::string_body> res{rr.status, req_.version()};
     res.set(http::field::server, "ECMSim-beast");
-    res.set(http::field::content_type, is_html ? "text/html" : "application/json");
+    res.set(http::field::content_type, rr.content_type);
     res.keep_alive(req_.keep_alive());
-    res.body() = response_str;
+    res.body() = rr.body;
     res.prepare_payload();
 
     auto res_shared = std::make_shared<http::response<http::string_body>>(std::move(res));

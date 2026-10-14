@@ -30,10 +30,11 @@ void RouteTrie::addRoute(const std::string& path, RequestHandler handler) {
         cur = cur->children[seg].get();
     }
     cur->handler = std::move(handler);
+    cur->has_handler = true;
     spdlog::debug("注册路由: {}", path);
 }
 
-std::string RouteTrie::dispatch(const http::request<http::string_body>& req) const {
+RouteResponse RouteTrie::dispatch(const http::request<http::string_body>& req) const {
     std::string target = std::string(req.target());
     size_t qpos = target.find('?');
     if (qpos != std::string::npos) {
@@ -42,19 +43,37 @@ std::string RouteTrie::dispatch(const http::request<http::string_body>& req) con
 
     auto segments = splitPath(target);
     const TrieNode* cur = &root_;
+    const TrieNode* last_handler_node = nullptr;
     for (const auto& seg : segments) {
+        if (cur->has_handler) {
+            last_handler_node = cur;
+        }
         auto it = cur->children.find(seg);
         if (it == cur->children.end()) {
-            return "{\"success\":false,\"error\":\"unknown route: " + target + "\"}";
+            // 如果Trie路由没有子节点，就调用当前节点路由的回调函数
+            if (last_handler_node) {
+                return last_handler_node->handler(req);
+            }
+            return RouteResponse{
+                "{\"success\":false,\"error\":\"unknown route: " + target + "\"}",
+                "application/json",
+                http::status::not_found
+            };
         }
         cur = it->second.get();
     }
 
-    if (!cur->handler) {
-        return "{\"success\":false,\"error\":\"no handler: " + target + "\"}";
+    if (cur->has_handler) {
+        return cur->handler(req);
     }
-
-    return cur->handler(req);
+    if (last_handler_node) {
+        return last_handler_node->handler(req);
+    }
+    return RouteResponse{
+        "{\"success\":false,\"error\":\"no handler: " + target + "\"}",
+        "application/json",
+        http::status::not_found
+    };
 }
 
 void RouteTrie::dumpNode(const TrieNode& node, int depth) const {

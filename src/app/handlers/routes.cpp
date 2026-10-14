@@ -1,10 +1,27 @@
 #include <app/handlers/routes.h>
-#include <app/handlers/common.h>
+#include <app/framework/common.h>
 #include <app/framework/ws_session.h>
+#include <app/framework/router.h>
+
+#include <app/framework/router.h>
+#include <app/framework/static_resource.h>
+
 #include <sence/scene_manager.h>
 #include <jsoncpp/json/json.h>
 
-std::string handleScene(const http::request<http::string_body>& req) {
+static RouteResponse makeResp(const std::string& body) {
+    return RouteResponse{body, "application/json", http::status::ok};
+}
+
+static RouteResponse makeErr(const std::string& msg) {
+    Json::Value r;
+    r["success"] = false;
+    r["error"] = msg;
+    Json::StyledWriter w;
+    return RouteResponse{w.write(r), "application/json", http::status::ok};
+}
+
+RouteResponse handleScene(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid;
     std::string action;
@@ -17,52 +34,50 @@ std::string handleScene(const http::request<http::string_body>& req) {
             Json::Value r;
             r["success"] = true;
             r["session_id"] = sid;
-            resp = makeJson(r);
+            return makeResp(makeJson(r));
         } else if (action == "config") {
             sid = body["session_id"].asString();
-            if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-            if (!g_scene_mgr.hasSession(sid)) { resp = jsonErr("session not found"); goto send; }
+            if (sid.empty()) { return makeErr("need session_id"); }
+            if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
             Json::Value v;
             Json::Reader rd;
             rd.parse(g_scene_mgr.getSceneJson(sid), v);
             v["success"] = true;
             v["session_id"] = sid;
-            resp = makeJson(v);
+            return makeResp(makeJson(v));
         } else if (action == "delete") {
             sid = body["session_id"].asString();
-            if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-            resp = g_scene_mgr.deleteSession(sid) ? jsonOk() : jsonErr("session not found");
+            if (sid.empty()) { return makeErr("need session_id"); }
+            return g_scene_mgr.deleteSession(sid) ? makeResp(jsonOk()) : makeErr("session not found");
         } else {
-            resp = jsonErr("unknown action");
+            return makeErr("unknown action");
         }
     } else if (req.method() == http::verb::get) {
         sid = body["session_id"].asString();
-        if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-        if (!g_scene_mgr.hasSession(sid)) { resp = jsonErr("session not found"); goto send; }
+        if (sid.empty()) { return makeErr("need session_id"); }
+        if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
         Json::Value v;
         Json::Reader rd;
         rd.parse(g_scene_mgr.getSceneJson(sid), v);
         v["success"] = true;
         v["session_id"] = sid;
-        resp = makeJson(v);
+        return makeResp(makeJson(v));
     } else if (req.method() == http::verb::delete_) {
         sid = body["session_id"].asString();
-        if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-        resp = g_scene_mgr.deleteSession(sid) ? jsonOk() : jsonErr("session not found");
+        if (sid.empty()) { return makeErr("need session_id"); }
+        return g_scene_mgr.deleteSession(sid) ? makeResp(jsonOk()) : makeErr("session not found");
     } else {
-        resp = jsonErr("use POST/GET/DELETE");
+        return makeErr("use POST/GET/DELETE");
     }
-send:
-    return resp;
 }
 
-std::string handleRadars(const http::request<http::string_body>& req) {
+RouteResponse handleRadars(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     std::string resp;
 
-    if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-    if (!g_scene_mgr.hasSession(sid)) { resp = jsonErr("session not found"); goto send; }
+    if (sid.empty()) { return makeErr("need session_id"); }
+    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::get) {
         Json::Value arr(Json::arrayValue);
@@ -84,44 +99,42 @@ std::string handleRadars(const http::request<http::string_body>& req) {
         Json::Value ret;
         ret["success"] = true;
         ret["radars"] = arr;
-        resp = makeJson(ret);
+        return makeResp(makeJson(ret));
     } else if (req.method() == http::verb::post) {
         auto jr = body["radar"];
-        if (jr.isNull()) { resp = jsonErr("need radar object"); goto send; }
+        if (jr.isNull()) { return makeErr("need radar object"); }
         ECMSim::Radar rad(
             jr["id"].asInt(), jr["x"].asDouble(), jr["y"].asDouble(),
             jr["Pt_dBm"].asDouble(), jr["G_dB"].asDouble(), jr["freq"].asDouble(),
             jr["bandwidth"].asDouble(), jr["sigma"].asDouble(), jr["thresh_db"].asDouble());
         bool ok = g_scene_mgr.addRadar(sid, rad);
         if (ok) broadcastScene(sid);
-        resp = ok ? jsonOk() : jsonErr("add failed");
+        return ok ? makeResp(jsonOk()) : makeErr("add failed");
     } else {
-        resp = jsonErr("use GET/POST");
+        return makeErr("use GET/POST");
     }
-send:
-    return resp;
 }
 
-std::string handleRadar(const http::request<http::string_body>& req) {
+RouteResponse handleRadar(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     std::string action;
     std::string resp;
 
-    if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-    if (!g_scene_mgr.hasSession(sid)) { resp = jsonErr("session not found"); goto send; }
+    if (sid.empty()) { return makeErr("need session_id"); }
+    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::post) {
         action = body.get("action", "").asString();
         if (action == "del") {
             int rid = body["radar_id"].asInt();
-            if (!rid) { resp = jsonErr("need radar_id"); goto send; }
+            if (!rid) { return makeErr("need radar_id"); }
             bool ok = g_scene_mgr.removeRadar(sid, rid);
             if (ok) broadcastScene(sid);
-            resp = ok ? jsonOk() : jsonErr("not found");
+            return ok ? makeResp(jsonOk()) : makeErr("not found");
         } else if (action == "update") {
             auto jr = body["radar"];
-            if (jr.isNull()) { resp = jsonErr("need radar"); goto send; }
+            if (jr.isNull()) { return makeErr("need radar"); }
             int rid = jr["id"].asInt();
             ECMSim::Radar rad(
                 rid, jr["x"].asDouble(), jr["y"].asDouble(),
@@ -129,16 +142,16 @@ std::string handleRadar(const http::request<http::string_body>& req) {
                 jr["bandwidth"].asDouble(), jr["sigma"].asDouble(), jr["thresh_db"].asDouble());
             bool ok = g_scene_mgr.updateRadar(sid, rid, rad);
             if (ok) broadcastScene(sid);
-            resp = ok ? jsonOk() : jsonErr("update failed");
+            return ok ? makeResp(jsonOk()) : makeErr("update failed");
         } else {
-            resp = jsonErr("unknown action");
+            return makeErr("unknown action");
         }
     } else if (req.method() == http::verb::get || req.method() == http::verb::delete_) {
         int rid = body["radar_id"].asInt();
-        if (!rid) { resp = jsonErr("need radar_id"); goto send; }
+        if (!rid) { return makeErr("need radar_id"); }
         if (req.method() == http::verb::get) {
             auto* r = g_scene_mgr.getRadar(sid, rid);
-            if (!r) { resp = jsonErr("not found"); goto send; }
+            if (!r) { return makeErr("not found"); }
             Json::Value j;
             j["success"] = true;
             j["radar_id"] = rid;
@@ -150,15 +163,15 @@ std::string handleRadar(const http::request<http::string_body>& req) {
             j["bandwidth"] = r->getBandwidth();
             j["sigma"] = r->getRCS();
             j["thresh_db"] = 10 * log10(r->getThreshLin());
-            resp = makeJson(j);
+            return makeResp(makeJson(j));
         } else {
             bool ok = g_scene_mgr.removeRadar(sid, rid);
             if (ok) broadcastScene(sid);
-            resp = ok ? jsonOk() : jsonErr("not found");
+            return ok ? makeResp(jsonOk()) : makeErr("not found");
         }
     } else if (req.method() == http::verb::put) {
         auto jr = body["radar"];
-        if (jr.isNull()) { resp = jsonErr("need radar"); goto send; }
+        if (jr.isNull()) { return makeErr("need radar"); }
         int rid = jr["id"].asInt();
         ECMSim::Radar rad(
             rid, jr["x"].asDouble(), jr["y"].asDouble(),
@@ -166,21 +179,19 @@ std::string handleRadar(const http::request<http::string_body>& req) {
             jr["bandwidth"].asDouble(), jr["sigma"].asDouble(), jr["thresh_db"].asDouble());
         bool ok = g_scene_mgr.updateRadar(sid, rid, rad);
         if (ok) broadcastScene(sid);
-        resp = ok ? jsonOk() : jsonErr("update failed");
+        return ok ? makeResp(jsonOk()) : makeErr("update failed");
     } else {
-        resp = jsonErr("use POST/GET/PUT/DELETE");
+        return makeErr("use POST/GET/PUT/DELETE");
     }
-send:
-    return resp;
 }
 
-std::string handleJammers(const http::request<http::string_body>& req) {
+RouteResponse handleJammers(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     std::string resp;
 
-    if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-    if (!g_scene_mgr.hasSession(sid)) { resp = jsonErr("session not found"); goto send; }
+    if (sid.empty()) { return makeErr("need session_id"); }
+    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::get) {
         Json::Value arr(Json::arrayValue);
@@ -201,10 +212,10 @@ std::string handleJammers(const http::request<http::string_body>& req) {
         Json::Value ret;
         ret["success"] = true;
         ret["jammers"] = arr;
-        resp = makeJson(ret);
+        return makeResp(makeJson(ret));
     } else if (req.method() == http::verb::post) {
         auto jv = body["jammer"];
-        if (jv.isNull()) { resp = jsonErr("need jammer"); goto send; }
+        if (jv.isNull()) { return makeErr("need jammer"); }
         ECMSim::JamType jt
             = jv["jam_type"].asString() == "NOISE_JAM"
                   ? ECMSim::JamType::NOISE_JAM : ECMSim::JamType::RANGE_DECEPT;
@@ -214,34 +225,32 @@ std::string handleJammers(const http::request<http::string_body>& req) {
             jv["jam_freq"].asDouble(), jt);
         bool ok = g_scene_mgr.addJammer(sid, jam);
         if (ok) broadcastScene(sid);
-        resp = ok ? jsonOk() : jsonErr("add failed");
+        return ok ? makeResp(jsonOk()) : makeErr("add failed");
     } else {
-        resp = jsonErr("use GET/POST");
+        return makeErr("use GET/POST");
     }
-send:
-    return resp;
 }
 
-std::string handleJammer(const http::request<http::string_body>& req) {
+RouteResponse handleJammer(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     std::string action;
     std::string resp;
 
-    if (sid.empty()) { resp = jsonErr("need session_id"); goto send; }
-    if (!g_scene_mgr.hasSession(sid)) { resp = jsonErr("session not found"); goto send; }
+    if (sid.empty()) { return makeErr("need session_id"); }
+    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::post) {
         action = body.get("action", "").asString();
         if (action == "del") {
             int jid = body["jammer_id"].asInt();
-            if (!jid) { resp = jsonErr("need jammer_id"); goto send; }
+            if (!jid) { return makeErr("need jammer_id"); }
             bool ok = g_scene_mgr.removeJammer(sid, jid);
             if (ok) broadcastScene(sid);
-            resp = ok ? jsonOk() : jsonErr("not found");
+            return ok ? makeResp(jsonOk()) : makeErr("not found");
         } else if (action == "update") {
             auto jv = body["jammer"];
-            if (jv.isNull()) { resp = jsonErr("need jammer"); goto send; }
+            if (jv.isNull()) { return makeErr("need jammer"); }
             int jid = jv["id"].asInt();
             ECMSim::JamType jt
                 = jv["jam_type"].asString() == "NOISE_JAM"
@@ -252,16 +261,16 @@ std::string handleJammer(const http::request<http::string_body>& req) {
                 jv["jam_freq"].asDouble(), jt);
             bool ok = g_scene_mgr.updateJammer(sid, jid, jam);
             if (ok) broadcastScene(sid);
-            resp = ok ? jsonOk() : jsonErr("update failed");
+            return ok ? makeResp(jsonOk()) : makeErr("update failed");
         } else {
-            resp = jsonErr("unknown action");
+            return makeErr("unknown action");
         }
     } else if (req.method() == http::verb::get || req.method() == http::verb::delete_) {
         int jid = body["jammer_id"].asInt();
-        if (!jid) { resp = jsonErr("need jammer_id"); goto send; }
+        if (!jid) { return makeErr("need jammer_id"); }
         if (req.method() == http::verb::get) {
             auto* j = g_scene_mgr.getJammer(sid, jid);
-            if (!j) { resp = jsonErr("not found"); goto send; }
+            if (!j) { return makeErr("not found"); }
             Json::Value jv;
             jv["success"] = true;
             jv["jammer_id"] = jid;
@@ -272,15 +281,15 @@ std::string handleJammer(const http::request<http::string_body>& req) {
             jv["jam_freq"] = j->getJamFreq();
             jv["jam_type"] = j->getJamType() == ECMSim::JamType::NOISE_JAM
                                   ? "NOISE_JAM" : "RANGE_DECEPT";
-            resp = makeJson(jv);
+            return makeResp(makeJson(jv));
         } else {
             bool ok = g_scene_mgr.removeJammer(sid, jid);
             if (ok) broadcastScene(sid);
-            resp = ok ? jsonOk() : jsonErr("not found");
+            return ok ? makeResp(jsonOk()) : makeErr("not found");
         }
     } else if (req.method() == http::verb::put) {
         auto jv = body["jammer"];
-        if (jv.isNull()) { resp = jsonErr("need jammer"); goto send; }
+        if (jv.isNull()) { return makeErr("need jammer"); }
         int jid = jv["id"].asInt();
         ECMSim::JamType jt
             = jv["jam_type"].asString() == "NOISE_JAM"
@@ -291,23 +300,21 @@ std::string handleJammer(const http::request<http::string_body>& req) {
             jv["jam_freq"].asDouble(), jt);
         bool ok = g_scene_mgr.updateJammer(sid, jid, jam);
         if (ok) broadcastScene(sid);
-        resp = ok ? jsonOk() : jsonErr("update failed");
+        return ok ? makeResp(jsonOk()) : makeErr("update failed");
     } else {
-        resp = jsonErr("use POST/GET/PUT/DELETE");
+        return makeErr("use POST/GET/PUT/DELETE");
     }
-send:
-    return resp;
 }
 
-std::string handleSimulate(const http::request<http::string_body>& req) {
+RouteResponse handleSimulate(const http::request<http::string_body>& req) {
     if (req.method() != http::verb::post) {
-        return jsonErr("use POST");
+        return makeErr("use POST");
     }
 
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
-    if (sid.empty()) return jsonErr("need session_id");
-    if (!g_scene_mgr.hasSession(sid)) return jsonErr("session not found");
+    if (sid.empty()) return makeErr("need session_id");
+    if (!g_scene_mgr.hasSession(sid)) return makeErr("session not found");
 
     auto results = g_scene_mgr.runSimulation(sid);
     Json::Value arr(Json::arrayValue);
@@ -338,47 +345,46 @@ std::string handleSimulate(const http::request<http::string_body>& req) {
     Json::Value ret;
     ret["success"] = true;
     ret["sim_results"] = arr;
-    std::string resp = makeJson(ret);
     // broadcastScene(sid);  /* 仿真不改变实体参数，无需推送（雷达/干扰机更新已由各自 handler 广播） */
-    return resp;
+    return makeResp(makeJson(ret));
 }
 
-std::string handleDqnState(const http::request<http::string_body>& req) {
-    if (req.method() != http::verb::get) return jsonErr("use GET");
+RouteResponse handleDqnState(const http::request<http::string_body>& req) {
+    if (req.method() != http::verb::get) return makeErr("use GET");
 
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     int jid = body["jammer_id"].asInt();
-    if (sid.empty() || !jid) return jsonErr("need session_id and jammer_id");
+    if (sid.empty() || !jid) return makeErr("need session_id and jammer_id");
 
     auto state = g_scene_mgr.getStateForJammer(sid, jid);
-    if (state.empty()) return jsonErr("jammer not found");
+    if (state.empty()) return makeErr("jammer not found");
 
     Json::Value s(Json::arrayValue);
     for (double v : state) s.append(v);
     Json::Value ret;
     ret["success"] = true;
     ret["state"] = s;
-    return makeJson(ret);
+    return makeResp(makeJson(ret));
 }
 
-std::string handleDqnAction(const http::request<http::string_body>& req) {
-    if (req.method() != http::verb::post) return jsonErr("use POST");
+RouteResponse handleDqnAction(const http::request<http::string_body>& req) {
+    if (req.method() != http::verb::post) return makeErr("use POST");
 
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     int jid = body["jammer_id"].asInt();
     double pd = body["power_dbm"].asDouble();
     double fq = body["jam_freq"].asDouble();
-    if (sid.empty() || !jid) return jsonErr("need session_id and jammer_id");
+    if (sid.empty() || !jid) return makeErr("need session_id and jammer_id");
 
     bool ok = g_scene_mgr.executeJammerAction(sid, jid, pd, fq);
     if (ok) broadcastScene(sid);
-    return ok ? jsonOk() : jsonErr("jammer not found");
+    return ok ? makeResp(jsonOk()) : makeErr("jammer not found");
 }
 
-std::string handleSceneList(const http::request<http::string_body>& req) {
-    if (req.method() != http::verb::get) return jsonErr("use GET");
+RouteResponse handleSceneList(const http::request<http::string_body>& req) {
+    if (req.method() != http::verb::get) return makeErr("use GET");
 
     auto sessions = g_scene_mgr.getAllSessions();
     Json::Value arr(Json::arrayValue);
@@ -397,11 +403,11 @@ std::string handleSceneList(const http::request<http::string_body>& req) {
     ret["success"] = true;
     ret["sessions"] = arr;
     ret["total"] = static_cast<int>(sessions.size());
-    return makeJson(ret);
+    return makeResp(makeJson(ret));
 }
 
-std::string handleSceneStats(const http::request<http::string_body>& req) {
-    if (req.method() != http::verb::get) return jsonErr("use GET");
+RouteResponse handleSceneStats(const http::request<http::string_body>& req) {
+    if (req.method() != http::verb::get) return makeErr("use GET");
 
     auto sessions = g_scene_mgr.getAllSessions();
     uint64_t now = static_cast<uint64_t>(std::time(nullptr));
@@ -431,14 +437,15 @@ std::string handleSceneStats(const http::request<http::string_body>& req) {
     mem_estimate += g_scene_mgr.getTotalJammerCount() * 256;
     stats["memory_estimate_bytes"] = static_cast<Json::Int64>(mem_estimate);
 
-    return makeJson(stats);
+    return makeResp(makeJson(stats));
 }
 
-#include <app/framework/router.h>
-
 void initRoutes(RouteTrie& trie) {
-    trie.addRoute("/", [](const http::request<http::string_body>& req) -> std::string {
-        return g_index_html;
+    trie.addRoute("/", [](const http::request<http::string_body>& req) -> RouteResponse {
+        std::string target = svToString(req.target());
+        size_t qpos = target.find('?');
+        if (qpos != std::string::npos) target = target.substr(0, qpos);
+        return serveStaticFile(target);
     });
 
     trie.addRoute("/api/scene", handleScene);
