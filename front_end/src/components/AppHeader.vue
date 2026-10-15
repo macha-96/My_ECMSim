@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, watch, ref, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSceneStore } from '../stores/scene'
+import { useAuthStore } from '../stores/auth'
 import { ElMessage } from 'element-plus'
 import { listScenes } from '../api/scene'
 import { errText } from '../api/http'
@@ -9,6 +11,13 @@ import type { WsStatus } from '../composables/useWebSocket'
 const props = defineProps<{ wsStatus: WsStatus; sessionId: string | null }>()
 
 const scene = useSceneStore()
+const auth = useAuthStore()
+const router = useRouter()
+
+async function onLogout(): Promise<void> {
+  await auth.logout() // 本地状态重置 + 尽力清理服务端会话
+  void router.push('/login')
+}
 
 const wsMeta = computed(() => {
   const m: Record<WsStatus, { label: string; color: string }> = {
@@ -72,8 +81,8 @@ function onWrapperEnter(e: MouseEvent): void {
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   dropdownTop.value = rect.bottom + 4
   dropdownLeft.value = rect.right - 320
+  // 只切换可见性，拉取由 popoverVisible 的 watch 统一触发，避免重复请求
   popoverVisible.value = true
-  void refreshSessions()
 }
 
 function onDropdownLeave(): void {
@@ -165,6 +174,10 @@ onBeforeUnmount(() => {
     <span v-if="scene.dirtyCount > 0" class="badge pending">待同步 {{ scene.dirtyCount }}</span>
     <span v-else-if="scene.syncing" class="badge syncing">同步中</span>
     <span v-else class="badge synced">已同步</span>
+    <div class="user-area">
+      <span class="badge user-name mono" :title="auth.username">{{ auth.username }}</span>
+      <button class="badge logout-btn" type="button" @click="onLogout">登出</button>
+    </div>
   </header>
 </template>
 
@@ -200,6 +213,15 @@ onBeforeUnmount(() => {
 .pending { color: var(--accent); border-color: var(--accent); }
 .syncing { color: var(--cyan); border-color: var(--cyan); }
 .synced { color: var(--ok); border-color: rgba(105, 240, 174, 0.4); }
+.user-area {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.logout-btn {
+  font-family: inherit;
+}
+.logout-btn:hover { border-color: var(--danger); color: var(--danger); }
 
 .session-wrapper {
   display: inline-flex;

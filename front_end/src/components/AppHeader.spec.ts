@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AppHeader from './AppHeader.vue'
 
@@ -9,6 +9,16 @@ vi.mock('../api/scene', () => ({
   listScenes: (...args: unknown[]) => listMock(...args),
 }))
 
+vi.mock('../api/auth', () => ({
+  register: vi.fn(), login: vi.fn(), logout: vi.fn(), status: vi.fn(),
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: pushMock }),
+}))
+
+const pushMock = vi.fn()
+
 vi.mock('element-plus', () => ({
   ElMessage: { error: vi.fn(), success: vi.fn() },
 }))
@@ -17,6 +27,7 @@ describe('AppHeader', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    document.body.innerHTML = ''
     listMock.mockResolvedValue({
       success: true,
       sessions: [
@@ -79,6 +90,9 @@ describe('AppHeader', () => {
   })
 
   it('下拉中当前会话带徽标', async () => {
+    // 组件用 scene store 的 sessionId 判定「当前」，挂载前先种入
+    const { useSceneStore } = await import('../stores/scene')
+    useSceneStore().sessionId = 'sess-abc'
     const w = mountHeader({ wsStatus: 'connected', sessionId: 'sess-abc' })
     await w.find('.session-wrapper').trigger('mouseenter')
     await w.vm.$nextTick()
@@ -113,6 +127,30 @@ describe('AppHeader', () => {
     await new Promise(r => setTimeout(r, 0))
     const { ElMessage } = await import('element-plus')
     expect(vi.mocked(ElMessage.error)).toHaveBeenCalledWith('down')
+    w.unmount()
+  })
+
+  it('显示当前登录用户名', async () => {
+    const { useAuthStore } = await import('../stores/auth')
+    const auth = useAuthStore()
+    auth.username = 'alice'
+    const w = mountHeader({ wsStatus: 'connected', sessionId: 's1' })
+    expect(w.find('.user-name').text()).toContain('alice')
+    w.unmount()
+  })
+
+  it('点击登出调用 auth.logout 并跳转 /login', async () => {
+    const { useAuthStore } = await import('../stores/auth')
+    const { logout } = await import('../api/auth')
+    const auth = useAuthStore()
+    auth.loggedIn = true
+    auth.username = 'alice'
+    const w = mountHeader({ wsStatus: 'connected', sessionId: 's1' })
+    await w.find('button.logout-btn').trigger('click')
+    await flushPromises()
+    expect(vi.mocked(logout)).toHaveBeenCalledTimes(1)
+    expect(pushMock).toHaveBeenCalledWith('/login')
+    expect(auth.loggedIn).toBe(false)
     w.unmount()
   })
 })

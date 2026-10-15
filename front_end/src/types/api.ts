@@ -89,3 +89,27 @@ export interface SceneListRes {
   total?: number
   error?: string
 }
+
+export interface RegisterRes {
+  success: boolean
+  user_id?: number
+  error?: string
+}
+
+export interface LoginRes {
+  success: boolean
+  session_id?: string
+  error?: string
+}
+
+export interface LogoutRes {
+  success: boolean
+  error?: string
+}
+
+export interface AuthStatusRes {
+  success: boolean
+  authenticated: boolean
+  user_id?: number
+  error?: string
+}
