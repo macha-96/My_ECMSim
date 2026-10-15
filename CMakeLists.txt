@@ -209,8 +209,8 @@ set(APP_HTTP_BEAST_SRCS
     ${PROJECT_SOURCE_DIR}/src/app/framework/ws_session.cpp
     ${PROJECT_SOURCE_DIR}/src/app/framework/static_resource.cpp
     ${PROJECT_SOURCE_DIR}/src/app/framework/common.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/handlers/routes.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/handlers/grpc_service.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/service/web_service.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/service/grpc_service.cpp
 )
 
 set(GRPC_LIBS

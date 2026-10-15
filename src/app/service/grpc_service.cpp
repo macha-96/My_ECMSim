@@ -1,4 +1,4 @@
-#include <app/handlers/grpc_service.h>
+#include <app/service/grpc_service.h>
 #include <app/framework/common.h>
 
 static inline const char* jammerModeStr(ECMSim::JamType t) {

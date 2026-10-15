@@ -32,7 +32,7 @@ services:
     container_name: mysql_server
     environment:
       - MYSQL_ROOT_PASSWORD=root_password   # 设置 root 用户密码
-      - MYSQL_DATABASE=aod_system           # 初始化数据库名称
+      - MYSQL_DATABASE=ecmsim_db            # 初始化数据库名称
       - MYSQL_USER=my_user                  # 创建的用户名称
       - MYSQL_PASSWORD=my_password          # 用户密码
     ports:

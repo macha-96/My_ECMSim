@@ -3,6 +3,7 @@ build/
 lib/
 third_party/
 mykeys/
+data
 .vscode
 .env
 .python-version
