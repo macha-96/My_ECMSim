@@ -15,6 +15,7 @@
 
 #include <app/framework/http_session.h>
 #include <app/service/grpc_service.h>
+#include <app/service/auth_service.h>
 #include <app/framework/router.h>
 #include <app/framework/common.h>
 #include <app/service/web_service.h>
@@ -59,6 +60,14 @@ int main(int argc, char* argv[]) {
     // 加载静态文件目录
     if (!loadStaticDir(static_dir)) {
         spdlog::error("无法加载静态文件目录: {}", static_dir);
+        return 1;
+    }
+
+    // 初始化认证系统（MySQL 连接池 + 幂等建表），失败则快速退出
+    if (!g_auth_mgr.connect()) {
+        spdlog::critical("认证系统初始化失败：无法连接 MySQL ({}:{})",
+                         std::getenv("ECMSIM_DB_HOST") ? std::getenv("ECMSIM_DB_HOST") : "127.0.0.1",
+                         std::getenv("ECMSIM_DB_PORT") ? std::getenv("ECMSIM_DB_PORT") : "3306");
         return 1;
     }
 

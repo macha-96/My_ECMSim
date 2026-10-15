@@ -6,7 +6,7 @@ else()
     message(STATUS "MySQL Connector/C++ default: ${MYSQL_CONNCXX_HOME}")
 endif()
 
-set(MYSQL_CONNCXX_INCLUDE ${MYSQL_CONNCXX_HOME}/include)
+set(MYSQL_CONNCXX_INCLUDE ${MYSQL_CONNCXX_HOME}/include/mysql-cppconn)
 set(MYSQL_CONNCXX_LIB_DIR ${MYSQL_CONNCXX_HOME}/lib/x86_64-linux-gnu)
 
 find_library(MYSQL_CONCPP_LIB
@@ -16,7 +16,7 @@ find_library(MYSQL_CONCPP_LIB
 )
 find_path(MYSQL_CONCPP_INCLUDE_DIR
     NAMES mysql_driver.h
-    PATHS ${MYSQL_CONNCXX_INCLUDE}/mysql-cppconn/jdbc
+    PATHS ${MYSQL_CONNCXX_INCLUDE}/jdbc
     NO_DEFAULT_PATH REQUIRED
 )
 

@@ -1,4 +1,5 @@
 #include <app/service/web_service.h>
+#include <app/service/auth_service.h>
 #include <app/framework/common.h>
 #include <app/framework/ws_session.h>
 #include <app/framework/router.h>
@@ -21,6 +22,13 @@ static RouteResponse makeErr(const std::string& msg) {
     return RouteResponse{w.write(r), "application/json", http::status::ok};
 }
 
+// 场景归属校验：session 存在且归属当前用户（旧版 -1 session 迁移期放行）
+static bool sessionAccessible(const std::string& sid) {
+    if (!g_scene_mgr.hasSession(sid)) return false;
+    int owner = g_scene_mgr.getSessionUser(sid);
+    return owner == g_thread_user_id || owner == -1;
+}
+
 RouteResponse handleScene(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid;
@@ -30,7 +38,7 @@ RouteResponse handleScene(const http::request<http::string_body>& req) {
     if (req.method() == http::verb::post) {
         action = body.get("action", "").asString();
         if (action.empty()) {
-            sid = g_scene_mgr.createSession();
+            sid = g_scene_mgr.createSession(g_thread_user_id);
             Json::Value r;
             r["success"] = true;
             r["session_id"] = sid;
@@ -38,7 +46,7 @@ RouteResponse handleScene(const http::request<http::string_body>& req) {
         } else if (action == "config") {
             sid = body["session_id"].asString();
             if (sid.empty()) { return makeErr("need session_id"); }
-            if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
+            if (!sessionAccessible(sid)) { return makeErr("session not found"); }
             Json::Value v;
             Json::Reader rd;
             rd.parse(g_scene_mgr.getSceneJson(sid), v);
@@ -55,7 +63,7 @@ RouteResponse handleScene(const http::request<http::string_body>& req) {
     } else if (req.method() == http::verb::get) {
         sid = body["session_id"].asString();
         if (sid.empty()) { return makeErr("need session_id"); }
-        if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
+        if (!sessionAccessible(sid)) { return makeErr("session not found"); }
         Json::Value v;
         Json::Reader rd;
         rd.parse(g_scene_mgr.getSceneJson(sid), v);
@@ -77,7 +85,7 @@ RouteResponse handleRadars(const http::request<http::string_body>& req) {
     std::string resp;
 
     if (sid.empty()) { return makeErr("need session_id"); }
-    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
+    if (!sessionAccessible(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::get) {
         Json::Value arr(Json::arrayValue);
@@ -122,7 +130,7 @@ RouteResponse handleRadar(const http::request<http::string_body>& req) {
     std::string resp;
 
     if (sid.empty()) { return makeErr("need session_id"); }
-    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
+    if (!sessionAccessible(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::post) {
         action = body.get("action", "").asString();
@@ -191,7 +199,7 @@ RouteResponse handleJammers(const http::request<http::string_body>& req) {
     std::string resp;
 
     if (sid.empty()) { return makeErr("need session_id"); }
-    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
+    if (!sessionAccessible(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::get) {
         Json::Value arr(Json::arrayValue);
@@ -238,7 +246,7 @@ RouteResponse handleJammer(const http::request<http::string_body>& req) {
     std::string resp;
 
     if (sid.empty()) { return makeErr("need session_id"); }
-    if (!g_scene_mgr.hasSession(sid)) { return makeErr("session not found"); }
+    if (!sessionAccessible(sid)) { return makeErr("session not found"); }
 
     if (req.method() == http::verb::post) {
         action = body.get("action", "").asString();
@@ -314,7 +322,7 @@ RouteResponse handleSimulate(const http::request<http::string_body>& req) {
     auto body = parseJson(svToString(req.body()));
     std::string sid = body["session_id"].asString();
     if (sid.empty()) return makeErr("need session_id");
-    if (!g_scene_mgr.hasSession(sid)) return makeErr("session not found");
+    if (!sessionAccessible(sid)) return makeErr("session not found");
 
     auto results = g_scene_mgr.runSimulation(sid);
     Json::Value arr(Json::arrayValue);
@@ -386,7 +394,7 @@ RouteResponse handleDqnAction(const http::request<http::string_body>& req) {
 RouteResponse handleSceneList(const http::request<http::string_body>& req) {
     if (req.method() != http::verb::get) return makeErr("use GET");
 
-    auto sessions = g_scene_mgr.getAllSessions();
+    auto sessions = g_scene_mgr.getSessionsByUser(g_thread_user_id);
     Json::Value arr(Json::arrayValue);
 
     for (const auto& [sid, last_access] : sessions) {
@@ -448,14 +456,21 @@ void initRoutes(RouteTrie& trie) {
         return serveStaticFile(target);
     });
 
-    trie.addRoute("/api/scene", handleScene);
-    trie.addRoute("/api/scene/list", handleSceneList);
-    trie.addRoute("/api/scene/stats", handleSceneStats);
-    trie.addRoute("/api/radars", handleRadars);
-    trie.addRoute("/api/radar", handleRadar);
-    trie.addRoute("/api/jammers", handleJammers);
-    trie.addRoute("/api/jammer", handleJammer);
-    trie.addRoute("/api/simulate", handleSimulate);
-    trie.addRoute("/api/dqn/state", handleDqnState);
-    trie.addRoute("/api/dqn/action", handleDqnAction);
+    // 认证接口（无需登录）
+    trie.addRoute("/auth/register", handleAuthRegister);
+    trie.addRoute("/auth/login", handleAuthLogin);
+    trie.addRoute("/auth/logout", handleAuthLogout);
+    trie.addRoute("/auth/status", handleAuthStatus);
+
+    // 业务接口（需登录，Cookie session_id 认证）
+    trie.addRoute("/api/scene", requireAuth(handleScene));
+    trie.addRoute("/api/scene/list", requireAuth(handleSceneList));
+    trie.addRoute("/api/scene/stats", requireAuth(handleSceneStats));
+    trie.addRoute("/api/radars", requireAuth(handleRadars));
+    trie.addRoute("/api/radar", requireAuth(handleRadar));
+    trie.addRoute("/api/jammers", requireAuth(handleJammers));
+    trie.addRoute("/api/jammer", requireAuth(handleJammer));
+    trie.addRoute("/api/simulate", requireAuth(handleSimulate));
+    trie.addRoute("/api/dqn/state", requireAuth(handleDqnState));
+    trie.addRoute("/api/dqn/action", requireAuth(handleDqnAction));
 }

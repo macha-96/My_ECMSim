@@ -12,6 +12,8 @@ struct RouteResponse {
     std::string body;
     std::string content_type = "application/json";
     http::status status = http::status::ok;
+    // 额外响应头（如 Set-Cookie），在 http_session 写响应时注入
+    std::vector<std::pair<std::string, std::string>> headers;
 };
 
 using RequestHandler = std::function<RouteResponse(const http::request<http::string_body>&)>;

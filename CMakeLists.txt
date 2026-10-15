@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ECMSim LANGUAGES C CXX)
+project(ECMSim LANGUAGES C CXX ASM)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,10 +43,11 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(bcrypt)
 include(protobuf)
 
-file(GLOB ALGO_SRCS    ${PROJECT_SOURCE_DIR}/src/algo/*.cpp)
-file(GLOB ENTITY_SRCS  ${PROJECT_SOURCE_DIR}/src/entity/*.cpp)
-file(GLOB SCENE_SRCS   ${PROJECT_SOURCE_DIR}/src/sence/*.cpp)
-file(GLOB JSONCPP_SRCS ${PROJECT_SOURCE_DIR}/src/jsoncpp/*.cpp)
+file(GLOB ALGO_SRCS     ${PROJECT_SOURCE_DIR}/src/algo/*.cpp)
+file(GLOB ENTITY_SRCS   ${PROJECT_SOURCE_DIR}/src/entity/*.cpp)
+file(GLOB SCENE_SRCS    ${PROJECT_SOURCE_DIR}/src/sence/*.cpp)
+file(GLOB JSONCPP_SRCS  ${PROJECT_SOURCE_DIR}/src/jsoncpp/*.cpp)
+file(GLOB DAO_SRCS      ${PROJECT_SOURCE_DIR}/src/app/dao/*.cpp)
 
 set(COMMON_SRCS
     ${ALGO_SRCS} ${ENTITY_SRCS} ${SCENE_SRCS}
@@ -72,10 +73,12 @@ set(APP_HTTP_BEAST_SRCS
     ${PROJECT_SOURCE_DIR}/src/app/framework/router.cpp
     ${PROJECT_SOURCE_DIR}/src/app/framework/http_session.cpp
     ${PROJECT_SOURCE_DIR}/src/app/framework/ws_session.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/framework/static_resource.cpp
     ${PROJECT_SOURCE_DIR}/src/app/framework/common.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/framework/static_resource.cpp
     ${PROJECT_SOURCE_DIR}/src/app/service/web_service.cpp
     ${PROJECT_SOURCE_DIR}/src/app/service/grpc_service.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/service/auth_service.cpp
+    ${DAO_SRCS}
 )
 
 add_executable(ecmsim_http_beast ${APP_HTTP_BEAST_SRCS})

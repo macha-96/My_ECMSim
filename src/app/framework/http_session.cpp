@@ -58,6 +58,9 @@ void http_session::process() {
     http::response<http::string_body> res{rr.status, req_.version()};
     res.set(http::field::server, "ECMSim-beast");
     res.set(http::field::content_type, rr.content_type);
+    for (const auto& [name, value] : rr.headers) {
+        res.set(name, value);
+    }
     res.keep_alive(req_.keep_alive());
     res.body() = rr.body;
     res.prepare_payload();

@@ -27,13 +27,24 @@ SessionData* SceneManager::getSession(const std::string& sid) const {
 }
 
 std::string SceneManager::createSession() {
+    return createSession(-1); // 旧版未认证 session
+}
+
+std::string SceneManager::createSession(int user_id) {
     std::lock_guard<std::mutex> lock(m_mtx);
     auto data = std::make_unique<SessionData>();
     data->created_at = static_cast<uint64_t>(std::time(nullptr));
     data->last_access = data->created_at;
+    data->user_id = user_id;
     std::string sid = generateId();
     m_sessions[sid] = std::move(data);
     return sid;
+}
+
+int SceneManager::getSessionUser(const std::string& sid) const {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    auto* s = getSession(sid);
+    return s ? s->user_id : -1;
 }
 
 bool SceneManager::deleteSession(const std::string& sid) {
@@ -256,6 +267,17 @@ std::unordered_map<std::string, uint64_t> SceneManager::getAllSessions() const {
     std::unordered_map<std::string, uint64_t> result;
     for (const auto& [sid, data] : m_sessions) {
         result[sid] = data->last_access;
+    }
+    return result;
+}
+
+std::unordered_map<std::string, uint64_t> SceneManager::getSessionsByUser(int user_id) const {
+    std::lock_guard<std::mutex> lock(m_mtx);
+    std::unordered_map<std::string, uint64_t> result;
+    for (const auto& [sid, data] : m_sessions) {
+        if (data->user_id == user_id) {
+            result[sid] = data->last_access;
+        }
     }
     return result;
 }

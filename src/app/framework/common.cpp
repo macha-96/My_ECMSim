@@ -1,5 +1,6 @@
 #include <app/framework/common.h>
 #include <app/framework/ws_session.h>
+#include <app/service/auth_service.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <sstream>
@@ -184,6 +185,7 @@ void cleanup_controller::run_cleanup_loop() {
             size_t after = g_scene_mgr.getSessionCount();
 
             g_broadcaster.cleanupStaleConnections();
+            g_auth_mgr.cleanupExpiredSessions();
 
             spdlog::info("清理完成: 会话 {} → {}, WebSocket连接数: {}", before, after, g_broadcaster.countConnections());
 

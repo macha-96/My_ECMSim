@@ -15,6 +15,7 @@ struct SessionData {
     SimScene scene;
     uint64_t created_at = 0;
     uint64_t last_access = 0;
+    int user_id = -1; // -1 = 旧版未认证 session（向后兼容）
 };
 
 class SceneManager {
@@ -22,8 +23,10 @@ public:
     SceneManager();
 
     std::string createSession();
+    std::string createSession(int user_id); // 登录用户创建的场景
     bool deleteSession(const std::string& sid);
     bool hasSession(const std::string& sid) const;
+    int getSessionUser(const std::string& sid) const; // 场景归属 user_id，不存在返回 -1
 
     bool addRadar(const std::string& sid, const Radar& r);
     bool removeRadar(const std::string& sid, int id);
@@ -50,6 +53,7 @@ public:
     // Resource management and statistics
     void cleanupStaleSessions(uint64_t max_age_seconds = 1800); // 30 minutes default
     std::unordered_map<std::string, uint64_t> getAllSessions() const; // sid -> last_access
+    std::unordered_map<std::string, uint64_t> getSessionsByUser(int user_id) const; // 过滤归属场景
     size_t getSessionCount() const;
     size_t getTotalRadarCount() const;
     size_t getTotalJammerCount() const;
