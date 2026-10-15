@@ -173,6 +173,50 @@ file(GLOB ENTITY_SRCS   ${PROJECT_SOURCE_DIR}/src/entity/*.cpp)
 file(GLOB SCENE_SRCS    ${PROJECT_SOURCE_DIR}/src/sence/*.cpp)
 file(GLOB JSONCPP_SRCS  ${PROJECT_SOURCE_DIR}/src/jsoncpp/*.cpp)
 
+# ===================== bcrypt (C 静态库) =====================
+set(BCRYPT_SRCS
+    ${PROJECT_SOURCE_DIR}/src/bcrypt/bcrypt.c
+    ${PROJECT_SOURCE_DIR}/src/bcrypt/crypt_gensalt.c
+    ${PROJECT_SOURCE_DIR}/src/bcrypt/crypt_blowfish.c
+    ${PROJECT_SOURCE_DIR}/src/bcrypt/wrapper.c
+    ${PROJECT_SOURCE_DIR}/src/bcrypt/x86.S
+)
+
+add_library(bcrypt STATIC ${BCRYPT_SRCS})
+target_include_directories(bcrypt PUBLIC
+    ${PROJECT_SOURCE_DIR}/include/bcrypt
+)
+set_target_properties(bcrypt PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# ===================== MySQL Connector/C++ =====================
+if(DEFINED ENV{MYSQL_CONNCXX_HOME} AND NOT "$ENV{MYSQL_CONNCXX_HOME}" STREQUAL "")
+    set(MYSQL_CONNCXX_HOME "$ENV{MYSQL_CONNCXX_HOME}")
+    message(STATUS "Using MySQL Connector/C++ from ENV MYSQL_CONNCXX_HOME = ${MYSQL_CONNCXX_HOME}")
+else()
+    set(MYSQL_CONNCXX_HOME "/home/ky/soft/mysql-conncpp")
+    message(STATUS "ENV MYSQL_CONNCXX_HOME not set, using default: ${MYSQL_CONNCXX_HOME}")
+endif()
+
+set(MYSQL_CONNCXX_INCLUDE ${MYSQL_CONNCXX_HOME}/include)
+set(MYSQL_CONNCXX_LIB_DIR ${MYSQL_CONNCXX_HOME}/lib/x86_64-linux-gnu)
+
+find_library(MYSQL_CONCPP_LIB
+    NAMES mysqlcppconn libmysqlcppconn
+    PATHS ${MYSQL_CONNCXX_LIB_DIR}
+    NO_DEFAULT_PATH
+    REQUIRED
+)
+find_path(MYSQL_CONCPP_INCLUDE_DIR
+    NAMES mysql_driver.h
+    PATHS ${MYSQL_CONNCXX_INCLUDE}/mysql-cppconn/jdbc
+    NO_DEFAULT_PATH
+    REQUIRED
+)
+message(STATUS "MySQL Connector/C++ library: ${MYSQL_CONCPP_LIB}")
+message(STATUS "MySQL Connector/C++ include: ${MYSQL_CONCPP_INCLUDE_DIR}")
+
 set(COMMON_SRCS
     ${ALGO_SRCS}
     ${ENTITY_SRCS}
@@ -187,6 +231,7 @@ set(GOOGLEAPIS_PROTO_ROOT ${PROJECT_SOURCE_DIR}/third_party/grpc/grpc/third_part
 add_library(sim_core STATIC ${COMMON_SRCS})
 target_include_directories(sim_core PUBLIC
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include/bcrypt
     ${GRPC_INCLUDE}
     ${CMAKE_BINARY_DIR}
     ${GRPC_GEN_DIR} # 新增：让代码能 #include "containerd/api/services/containers/v1/containers.pb.h"
@@ -194,6 +239,7 @@ target_include_directories(sim_core PUBLIC
     ${GOOGLEAPIS_PROTO_ROOT}  # <<====新增，解决 google/rpc/status.pb.h
     ${Boost_INCLUDE_DIRS}
     ${absl_INCLUDE_DIRS}
+    ${MYSQL_CONNCXX_INCLUDE}
 )
 target_link_libraries(sim_core PUBLIC
     pthread
@@ -244,6 +290,7 @@ add_executable(ecmsim_http_beast ${APP_HTTP_BEAST_SRCS})
 target_link_libraries(ecmsim_http_beast
     PRIVATE
         sim_core
+        bcrypt
         -Wl,--start-group
         ${GRPC_LIBS}
         ${Boost_LIBRARIES}
@@ -340,12 +387,31 @@ target_link_libraries(ecmsim_http_beast
         cares
         re2
 )
+
+target_link_libraries(ecmsim_http_beast PRIVATE ${MYSQL_CONCPP_LIB})
+
+add_custom_command(TARGET ecmsim_http_beast POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${MYSQL_CONNCXX_LIB_DIR}/libmysqlcppconn.so.10.9.7.0"
+        "${PROJECT_SOURCE_DIR}/lib/"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "libmysqlcppconn.so.10.9.7.0"
+        "${PROJECT_SOURCE_DIR}/lib/libmysqlcppconn.so.10"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "libmysqlcppconn.so.10"
+        "${PROJECT_SOURCE_DIR}/lib/libmysqlcppconn.so"
+    COMMENT "Copying libmysqlcppconn.so to bin/../lib/ for RPATH"
+)
+
 target_include_directories(ecmsim_http_beast PRIVATE
     ${GRPC_INCLUDE}
     ${Boost_INCLUDE_DIRS}
     ${absl_INCLUDE_DIRS}
     ${GRPC_GEN_DIR} # 这里也要加上，方便引用containerd生成头文件
     ${GRPC_GEN_DIR}/containerd/api  # <<=====新增
+    ${PROJECT_SOURCE_DIR}/include/bcrypt
+    ${MYSQL_CONNCXX_INCLUDE}
+    ${MYSQL_CONCPP_INCLUDE_DIR}
 )
 set_target_properties(ecmsim_http_beast PROPERTIES
     INSTALL_RPATH "$ORIGIN/../lib"
