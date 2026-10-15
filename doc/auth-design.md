@@ -378,7 +378,7 @@ set(APP_HTTP_BEAST_SRCS
     ${PROJECT_SOURCE_DIR}/src/app/handlers/common.cpp
     ${PROJECT_SOURCE_DIR}/src/app/handlers/routes.cpp
     ${PROJECT_SOURCE_DIR}/src/app/handlers/grpc_service.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/handlers/auth.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/service/auth_service.cpp
     ${DAO_SRCS}
 )
 
@@ -491,8 +491,8 @@ void initDatabase() {
 | `src/app/dao/user_dao.cpp` | 新建 | 用户 DAO 实现 |
 | `include/app/dao/session_dao.h` | 新建 | 会话 DAO 声明 |
 | `src/app/dao/session_dao.cpp` | 新建 | 会话 DAO 实现 |
-| `include/app/handlers/auth.h` | 新建 | AuthManager 声明 |
-| `src/app/handlers/auth.cpp` | 新建 | AuthManager 实现 |
+| `include/app/service/auth_service.h` | 新建 | AuthManager 声明 |
+| `src/app/service/auth_service.cpp` | 新建 | AuthManager 实现 |
 | `static/login.html` | 新建 | 登录页面 |
 | `static/register.html` | 新建 | 注册页面 |
 | `static/js/auth.js` | 新建 | 前端认证逻辑 |
